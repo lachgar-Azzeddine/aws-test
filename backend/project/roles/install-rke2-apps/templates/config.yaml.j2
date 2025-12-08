@@ -1,0 +1,34 @@
+# config.yaml template
+
+# Common configuration for RKE2
+write-kubeconfig-mode: {{ kubeconfig_mode }}
+token: {{ token }}
+
+{% if inventory_hostname in groups['initial_master'] %}
+# Configuration for Initial Master
+node-name: {{ inventory_hostname }}
+
+tls-san:
+  {% for master in groups['initial_master'] + groups['masters'] %}
+  - {{ hostvars[master].ansible_host }}
+  {% endfor %}
+
+{% elif inventory_hostname in groups['masters'] %}
+# Configuration for Additional Master
+tls-san:
+  {% for master in groups['initial_master'] + groups['masters'] %}
+  - {{ hostvars[master].ansible_host }}
+  {% endfor %}
+
+server: https://{{ hostvars[groups['initial_master'][0]].ansible_host }}:9345
+node-name: {{ inventory_hostname }}
+
+
+{% elif inventory_hostname in groups['workers'] %}
+# Configuration for Worker
+server: https://{{ hostvars[groups['initial_master'][0]].ansible_host }}:9345
+node-name: {{ inventory_hostname }}
+
+{% endif %}
+
+

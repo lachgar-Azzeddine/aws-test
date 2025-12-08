@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: longhorn
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://{{ gogs_url }}/devops/harmonisation
+    path: longhorn
+    targetRevision: {{ target_revision | default('HEAD') }}
+    insecure: true
+  destination:
+    server: {{ destination_server | default('https://kubernetes.default.svc') }}
+    namespace: {{ destination_namespace | default('longhorn-system') }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

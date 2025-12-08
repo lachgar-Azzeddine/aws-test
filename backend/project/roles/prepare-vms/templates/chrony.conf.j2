@@ -1,0 +1,16 @@
+# Use public NTP servers
+pool 2.pool.ntp.org iburst
+
+# Use local NTP servers if you have them, you can pass these as variables
+{% for server in ntp_servers | default([]) %}
+server {{ server }} iburst
+{% endfor %}
+
+# Steer the clock faster at startup to quickly correct large time errors.
+makestep 1.0 3
+
+# Enable kernel synchronization of the real-time clock (RTC).
+rtcsync
+
+# Log configuration
+logdir /var/log/chrony

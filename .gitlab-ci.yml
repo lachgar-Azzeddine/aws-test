@@ -1,0 +1,24 @@
+stages:
+  - test-shipping
+  - deploy
+
+test-shipping:
+  stage: test-shipping
+  image:
+    name: registry.devops.os/os-dts/harmonisation/runner:pipeline
+  variables:
+    CI: "false"
+  only:
+    - branches
+  script:
+    - run.sh
+
+build-image:
+  stage: deploy
+  image: docker:19
+  only:
+    - branches
+  script:
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME

@@ -1,0 +1,315 @@
+---
+- name: Check if gogs is installed  
+  become: true
+  shell: 'docker container ls -a --format {% raw %} "{{.Names}}" {% endraw %} --filter "name=gogs"'
+  register: is_gogs_installed
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+
+- name: Set a global fact on the control node
+  set_fact:
+    gogs_installed: "{{ is_gogs_installed.stdout }}"
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+
+- name: Access the global fact on all hosts
+  debug:
+    msg: "gogs server already installed, next steps will be skipped"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['gogs-target']['gogs_installed'] == 'gogs'"
+
+- name: Ensure Gogs data directory exists
+  become: true
+  file:
+    path: "{{ gogs_data_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+
+
+- name: Ensure Gogs config directory exists
+  file:
+    path: "{{ gogs_data_dir }}/conf"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  become: true
+
+- name: Ensure SSL certificate directory exists
+  file:
+    path: "{{ ssl_cert_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  become: true
+
+- name: Generate a self-signed SSL certificate
+  command: >
+    openssl req -x509 -nodes -days 365
+    -newkey rsa:2048
+    -keyout {{ ssl_cert_dir }}/gogs.key
+    -out {{ ssl_cert_dir }}/gogs.crt
+    -subj "/C=US/ST=State/L=City/O=Organization/OU=OrgUnit/CN={{ domain_name }}"
+  args:
+    creates: "{{ ssl_cert_dir }}/gogs.crt"
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  become: true
+
+- name: Copy Gogs configuration file
+  copy:
+    dest: "{{ gogs_data_dir }}/conf/app.ini"
+    content: |
+      [server]
+      EXTERNAL_URL = https://{{ domain_name }}/
+      DOMAIN = {{ domain_name }}
+      PROTOCOL = https
+      LOCAL_ROOT_URL = https://{{ domain_name }}/
+      HTTP_PORT = 3000
+      CERT_FILE = /data/gogs/ssl/gogs.crt
+      KEY_FILE = /data/gogs/ssl/gogs.key
+      APP_DATA_PATH = data
+      LANDING_URL = /
+
+      [repository]
+      DEFAULT_BRANCH = master
+
+      [database]
+      TYPE = sqlite3
+      HOST = 127.0.0.1:5432
+      NAME = devops
+      USER = devops
+      PATH = /data/gogs/gogs.db
+      PASSWORD = devops
+
+      [security]
+      INSTALL_LOCK = true
+      SECRET_KEY = !#@FDEWREWR&*(
+
+      [auth]
+      DISABLE_REGISTRATION = true
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  become: true
+
+- name: Run the Gogs container
+  docker_container:
+    name: gogs
+    image: "{{ registry_url }}/gogs/gogs:latest"
+    state: started
+    restart_policy: unless-stopped
+    ports:
+      - "443:3000"
+    volumes:
+      - "{{ gogs_data_dir }}:/data/gogs"
+      - "{{ ssl_cert_dir }}:/data/gogs/ssl"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://localhost/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  become: true
+
+- name: Wait until the Gogs container is healthy
+  block:
+    - name: Check container health status
+      docker_container_info:
+        name: gogs
+      register: container_info
+      until: container_info.container.State.Health.Status == "unhealthy"
+      retries: 20
+      delay: 6
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  become: true
+
+- name: Create admin user via Gogs CLI
+  command: >
+    docker exec -u git gogs /app/gogs/gogs admin create-user --admin
+    --name={{ admin_user }}
+    --email={{ admin_email }}
+    --password={{ admin_password }}
+    --admin=true
+  args:
+    creates: "{{ gogs_data_dir }}/gogs-admin.lock"
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  become: true
+
+- name: Retrieve Gogs API token
+  uri:
+    url: "https://localhost/api/v1/users/{{ admin_user }}/tokens"
+    method: POST
+    headers:
+      Authorization: "Basic {{ (admin_user + ':' + admin_password) | b64encode }}"
+      Content-Type: "application/json"
+    body:
+      name: "Tokenssss"
+    body_format: json
+    return_content: yes
+    validate_certs: false 
+    status_code: [201,200]
+  register: api_token_response
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  become: true
+
+
+- name: Set Gogs API token as a variable
+  set_fact:
+    gogs_api_token: "{{ api_token_response.json.sha1 }}"
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  become: true
+
+- name: Create repository via Gogs API
+  uri:
+    url: "https://localhost/api/v1/admin/users/{{ admin_user }}/repos"
+    method: POST
+    headers:
+      Authorization: "token {{ gogs_api_token }}"
+    body:
+      name: harmonisation
+      private: true
+    body_format: json
+    return_content: yes
+    validate_certs: false
+    status_code: [201, 200]
+  when: 
+    - "inventory_hostname == 'gogs-target'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  become: true
+
+
+- name: Configure Git user email
+  ansible.builtin.command:
+    cmd: git config --global user.email "{{ admin_email }}"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    # - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  # become: true
+
+- name: Configure Git username
+  ansible.builtin.command:
+    cmd: git config --global user.name "{{ admin_user }}"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    # - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  # become: true
+
+- name: Configure Git credentials helper with admin credentials
+  ansible.builtin.shell:
+    cmd: |
+      git config --global credential.helper store
+      echo "https://{{ admin_user }}:{{ admin_password }}@{{ domain_name }}" > ~/.git-credentials
+  when: 
+    - "inventory_hostname == 'localhost'"
+    # - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  # become: true
+
+- name: Set Git to ignore ssl verification
+  ansible.builtin.command:
+    cmd: git config --global http.sslVerify "false"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    # - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+  # become: true
+
+- name: Create harmonisation directory
+  ansible.builtin.file:
+    path: /tmp/harmonisation
+    state: directory
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+
+- name: Create a README.md file
+  ansible.builtin.copy:
+    dest: /tmp/harmonisation/README.md
+    content: |
+      # Harmonisation Repository
+      
+      This is the repository for harmonisation project.
+    mode: '0644'
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+    
+- name: Initialize git repository in harmonisation directory
+  ansible.builtin.command:
+    cmd: git init
+    chdir: /tmp/harmonisation
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+
+- name: Add remote origin to the git repository
+  ansible.builtin.command:
+    cmd: git remote add origin https://{{ domain_name }}/devops/harmonisation.git
+    chdir: /tmp/harmonisation
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+
+- name: Add files and commit changes
+  ansible.builtin.command:
+    cmd: git add .
+    chdir: /tmp/harmonisation
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+
+- name: Commit changes to git repository
+  ansible.builtin.command:
+    cmd: git commit -m "Initial commit"
+    chdir: /tmp/harmonisation
+  args:
+    creates: /tmp/harmonisation/.git/COMMIT_EDITMSG
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+
+- name: Push changes to remote repository
+  ansible.builtin.command:
+    cmd: git push -u origin master
+    chdir: /tmp/harmonisation
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+
+- name: Delete harmonisation directory
+  ansible.builtin.file:
+    path: /tmp/harmonisation
+    state: absent
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['gogs-target']['gogs_installed'] != 'gogs'"
+
+
+

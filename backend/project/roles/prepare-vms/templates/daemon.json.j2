@@ -1,0 +1,8 @@
+{
+    {% if registry.address is defined and registry.address != "" %}
+    "max-concurrent-uploads": 4,
+    "insecure-registries": ["{{ registry.address }}"]
+    {% else %}
+    "max-concurrent-uploads": 4
+    {% endif %}
+}

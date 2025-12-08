@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  LB_integration:
+    image: "{{registry_url}}/haproxy:3.1"
+    container_name: lb_integration
+    restart: always
+    ports:
+      - "80:80"     
+      - "443:443"   
+{% if install_eservice == True %}
+      - "{{sig_db_port}}:{{sig_db_port}}"
+      - "{{Informix_db_port}}:{{Informix_db_port}}"
+      - "{{postgres_db_port}}:{{postgres_db_port}}"
+      - "{{smtp_server_port}}:{{smtp_server_port}}"
+      - "{{internal_ldap_port}}:{{internal_ldap_port}}"
+      - "{{external_ldap_port}}:{{external_ldap_port}}"
+{% endif %}
+{% if install_gco == True %}
+      - "{{gco_db_port}}:{{gco_db_port}}"
+      - "{{gco_sig_port}}:{{gco_sig_port}}"
+      - "{{arcgis_port}}:{{arcgis_port}}"
+      - "{{websocketGCO_port}}:{{websocketGCO_port}}"
+      - "{{gco_ldap_port}}:{{gco_ldap_port}}"
+      - "5080:5080"
+      - "7080:7080"
+      - "5443:5443"
+{% endif %}
+    volumes:
+      - "{{ haproxy_config_path | default('./haproxy.cfg') }}:/usr/local/etc/haproxy/haproxy.cfg:ro"
+      - "{{ ssl_cert_path | default('./certs') }}:/etc/haproxy/certs:ro"  # SSL certificates
+    networks:
+      - haproxy_network
+
+networks:
+  haproxy_network:
+    driver: bridge
+

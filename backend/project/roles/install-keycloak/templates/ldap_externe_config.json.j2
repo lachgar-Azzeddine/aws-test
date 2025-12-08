@@ -1,0 +1,31 @@
+{
+  "id": "{{ ldap_provider_id }}",
+  "name": "User-Externe-LDAP",
+  "providerId": "ldap",
+  "providerType": "org.keycloak.storage.UserStorageProvider",
+  "parentId": "exampleexternal",
+  "config": {
+    "connectionUrl": ["{{ ext_ldap_url }}"],
+    "bindCredential": ["{{ ext_ldap_password }}"],
+    "usernameLDAPAttribute": ["{{ ext_ldap_user_attribute }}"],
+    "editMode": ["READ_ONLY"],
+    "fullSyncPeriod": ["-1"],
+    "pagination": ["true"],
+    "connectionPooling": ["true"],
+    "usersDn": ["{{ ext_ldap_user_dn }}"],
+    "cachePolicy": ["DEFAULT"],
+    "importEnabled": ["true"],
+    "enabled": ["true"],
+    "bindDn": ["{{ ext_ldap_user }}"],
+    "vendor": ["other"],
+    "uuidLDAPAttribute": ["uid"],
+    "authType": ["simple"],
+    "searchScope": ["{{ ext_ldap_search_scope }}"],
+    "useTruststoreSpi": ["ldapsOnly"],
+    "priority": ["2"],
+    "userObjectClasses": ["inetOrgPerson, organizationalPerson, person"],
+    "rdnLDAPAttribute": ["uid"],
+    "validatePasswordPolicy": ["false"],
+    "batchSizeForSync": ["1000"]
+  }
+}

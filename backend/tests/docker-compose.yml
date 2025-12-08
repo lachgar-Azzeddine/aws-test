@@ -1,0 +1,67 @@
+services:
+  registry:
+    image: registry:2
+    container_name: dev-registry
+    ports:
+      - "8443:443"
+    volumes:
+      - ./dataregistry:/var/lib/registry
+      - ./certs:/certs
+      - ./auth:/auth
+    environment:
+      - REGISTRY_HTTP_ADDR=0.0.0.0:443
+      - REGISTRY_AUTH=htpasswd
+      - REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm
+      - REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd
+      - REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.crt
+      - REGISTRY_HTTP_TLS_KEY=/certs/domain.key
+
+  gogs:
+    image: gogs/gogs
+    container_name: dev-gogs
+    ports:
+      - "10022:22"
+      - "443:3000"
+    volumes:
+      - ./gogs-data:/data/gogs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://localhost:3000/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  vault:
+    image: vault:1.12.0
+    container_name: dev-vault
+    ports:
+      - "8200:8200"
+    volumes:
+      - ./vault/config:/vault/config
+      - ./vault/file:/vault/file
+      - ./vault/logs:/vault/logs
+    environment:
+      - VAULT_ADDR=http://localhost:8200
+      # - VAULT_API_ADDR=http://localhost:8200
+    cap_add:
+      - IPC_LOCK
+    entrypoint: vault
+    command: server -config=/vault/config/vault.hcl
+
+  # postgres:
+  #   image: postgres:15
+  #   container_name: postgres
+  #   restart: unless-stopped
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     POSTGRES_USER: harmonisation
+  #     POSTGRES_PASSWORD: harmonisation
+  #   healthcheck:
+  #     {
+  #       test: ["CMD-SHELL", "pg_isready -U harmonisation"],
+  #       interval: 10s,
+  #       timeout: 5s,
+  #       retries: 5,
+  #     }
+  #   volumes:
+  #     - ./postgres:/var/lib/postgresql/data

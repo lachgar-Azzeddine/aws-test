@@ -1,0 +1,98 @@
+- name: Delete harmonisation directory
+  ansible.builtin.file:
+    path: /tmp/harmonisation
+    state: absent
+
+# - name: Wait before proceeding
+#   ansible.builtin.pause:
+#     seconds: 120
+  
+- name: Check longhorn requirements 
+  # become: true
+  local_action:
+    module: shell files/environment_check.sh | bash
+  
+
+- name: Clone Harmonisation Repo
+  command:
+    cmd: git clone https://{{ gogs_ip }}/devops/harmonisation.git
+    chdir: /tmp
+  environment:
+    GIT_SSL_NO_VERIFY: "true"    
+  
+
+- name: Create Longhorn directory
+  file:
+    path: /tmp/harmonisation/longhorn
+    state: directory
+  
+
+- name: Copy file from template to new Folder
+  template:
+    src: longhorn.yaml.j2
+    dest: /tmp/harmonisation/longhorn/longhorn.yaml
+  
+
+- name: Check git status
+  command: 
+    cmd: git status
+    chdir: /tmp/harmonisation
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  register: diff_result
+
+
+
+- name: Add changes to git
+  ansible.builtin.command:
+    cmd: git add .
+    chdir: /tmp/harmonisation
+  when: "'nothing to commit' not in diff_result.stdout"
+
+- name: Commit changes
+  ansible.builtin.command:
+    cmd: git commit -m "longhorn Initial commit"
+    chdir: /tmp/harmonisation
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  register: commit_result
+  # failed_when: commit_result.rc != 0 and "nothing to commit" not in commit_result.stderr
+  when: "'nothing to commit' not in diff_result.stdout"
+
+- name: Push changes to the repository without SSL verification
+  ansible.builtin.command:
+    cmd: git push -u origin master
+    chdir: /tmp/harmonisation
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  when: "'nothing to commit' not in diff_result.stdout"
+
+- name: Render longhorn-argocd-app.yaml with dynamic values
+  template:
+    src: longhorn-argocd-app.yaml.j2
+    dest: /tmp/longhorn-argocd-app.yaml
+  
+
+- name: Apply Longhorn Argocd manifest on APPS
+  k8s:
+    state: present
+    src: /tmp/longhorn-argocd-app.yaml
+    context: RKE2-APPS
+  environment:
+    KUBECONFIG: /home/devops/.kube/config
+  
+
+- name: Apply Longhorn Argocd manifest on MIDDLEWARE
+  k8s:
+    state: present
+    src: /tmp/longhorn-argocd-app.yaml
+    context: RKE2-MIDDLEWARE
+  environment:
+    KUBECONFIG: /home/devops/.kube/config
+  
+
+- name: Delete harmonisation directory
+  ansible.builtin.file:
+    path: /tmp/harmonisation
+    state: absent
+  

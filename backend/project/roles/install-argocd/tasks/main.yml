@@ -1,0 +1,352 @@
+
+# - name: Check if Argocd namespace exists
+#   shell: |
+#     kubectl get namespace argocd --no-headers || echo "Not Found"
+#   register: argocd_namespace_check
+#   changed_when: false
+
+- name: Render namespace-install.yaml.j2 with dynamic values
+  ansible.builtin.template:
+    src: templates/namespace-install.yaml.j2
+    dest: /tmp/namespace-install.yaml
+    mode: '0644'
+  when: inventory_hostname == 'localhost' 
+
+
+- name: Render argocd-secret.yaml.j2 with dynamic values
+  ansible.builtin.template:
+    src: templates/argocd-secret.yaml.j2
+    dest: /tmp/argocd-secret.yaml
+    mode: '0644'
+  when: inventory_hostname == 'localhost' 
+
+
+- name: Render argocd-ingress-apps.yaml.j2 with dynamic values
+  ansible.builtin.template:
+    src: templates/argocd-ingress-apps.yaml.j2
+    dest: /tmp/argocd-ingress-apps.yaml
+    mode: '0644'
+  when: inventory_hostname == 'localhost' 
+
+
+- name: Render argocd-ingress-mw.yaml.j2 with dynamic values
+  ansible.builtin.template:
+    src: templates/argocd-ingress-mw.yaml.j2
+    dest: /tmp/argocd-ingress-mw.yaml
+    mode: '0644'
+  when: inventory_hostname == 'localhost'
+
+
+- name: Render argocd-ingress-dmz.yaml.j2 with dynamic values
+  ansible.builtin.template:
+    src: templates/argocd-ingress-dmz.yaml.j2
+    dest: /tmp/argocd-ingress-dmz.yaml
+    mode: '0644'
+  when: inventory_hostname == 'localhost'
+
+
+- name: Create a namespace in RKE2 APPS cluster
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: argocd
+    context: RKE2-APPS
+    kubeconfig: "{{ kubeconfig_path }}"
+  when: inventory_hostname == 'localhost' 
+
+
+- name: Apply the argocd YAML file to RKE2 APPS cluster
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/namespace-install.yaml
+    context: RKE2-APPS
+    namespace: argocd
+    kubeconfig: "{{ kubeconfig_path }}"
+  when: inventory_hostname == 'localhost' 
+
+- name: Wait for secrets to be created
+  ansible.builtin.pause:
+    seconds: 15
+    prompt: "Waiting for 15 seconds to allow secrets to be created before other components start..."
+  when: inventory_hostname == 'localhost' 
+
+
+- name: Connect Argocd RKE2 APPS cluster to Gogs
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/argocd-secret.yaml
+    context: RKE2-APPS
+    namespace: argocd
+    kubeconfig: "{{ kubeconfig_path }}"
+  when: inventory_hostname == 'localhost' 
+
+
+- name: Apply RKE2-APPS Argocd Ingress
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/argocd-ingress-apps.yaml
+    context: RKE2-APPS
+    namespace: argocd
+    kubeconfig: "{{ kubeconfig_path }}"
+  when: inventory_hostname == 'localhost' 
+
+
+- name: Create a namespace in RKE2 MIDDLEWARE cluster
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: argocd
+    context: RKE2-MIDDLEWARE
+    kubeconfig: "{{ kubeconfig_path }}"
+  when: inventory_hostname == 'localhost' 
+
+
+- name: Apply the argocd YAML file to RKE2 MIDDLEWARE cluster
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/namespace-install.yaml
+    context: RKE2-MIDDLEWARE
+    namespace: argocd
+    kubeconfig: "{{ kubeconfig_path }}"
+  when: inventory_hostname == 'localhost' 
+
+
+- name: Connect Argocd RKE2 MIDDLEWARE cluster to Gogs
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/argocd-secret.yaml
+    context: RKE2-MIDDLEWARE
+    kubeconfig: "{{ kubeconfig_path }}"
+  when: inventory_hostname == 'localhost' 
+
+
+- name: Apply RKE2-MIDDLEWARE Argocd Ingress
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/argocd-ingress-mw.yaml
+    context: RKE2-MIDDLEWARE
+    namespace: argocd
+    kubeconfig: "{{ kubeconfig_path }}"
+  when: inventory_hostname == 'localhost'
+
+
+- name: Create a namespace in RKE2 DMZ cluster
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: argocd
+    context: RKE2-DMZ
+    kubeconfig: "{{ kubeconfig_path }}"
+  when: inventory_hostname == 'localhost'
+
+
+- name: Apply the argocd YAML file to RKE2 DMZ cluster
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/namespace-install.yaml
+    context: RKE2-DMZ
+    namespace: argocd
+    kubeconfig: "{{ kubeconfig_path }}"
+  when: inventory_hostname == 'localhost'
+
+
+- name: Connect Argocd RKE2 DMZ cluster to Gogs
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/argocd-secret.yaml
+    context: RKE2-DMZ
+    namespace: argocd
+    kubeconfig: "{{ kubeconfig_path }}"
+  when: inventory_hostname == 'localhost'
+
+
+- name: Apply RKE2-DMZ Argocd Ingress
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/argocd-ingress-dmz.yaml
+    context: RKE2-DMZ
+    namespace: argocd
+    kubeconfig: "{{ kubeconfig_path }}"
+  when: inventory_hostname == 'localhost'
+
+# ==========================================
+# VERIFICATION TASKS
+# ==========================================
+
+- name: Wait for ArgoCD pods to be ready in RKE2-APPS
+  ansible.builtin.shell: |
+    kubectl wait --for=condition=Ready pod -l 'app.kubernetes.io/name in (argocd-server,argocd-application-controller,argocd-redis,argocd-dex-server,argocd-repo-server,argocd-notifications-controller,argocd-applicationset-controller)' -n argocd --context=RKE2-APPS --timeout=300s
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: argocd_pods_apps
+  failed_when: argocd_pods_apps.rc != 0
+  retries: 2
+  changed_when: false
+  when: inventory_hostname == 'localhost' 
+
+- name: Verify ArgoCD API in RKE2-APPS
+  ansible.builtin.shell: |
+    kubectl exec -n argocd deployment/argocd-server -- argocd version --client --context RKE2-APPS
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: argocd_version_apps
+  changed_when: false
+  retries: 10
+  delay: 10
+  until: argocd_version_apps.rc == 0
+  when: inventory_hostname == 'localhost' 
+
+- name: Display ArgoCD RKE2-APPS status
+  ansible.builtin.debug:
+    msg: |
+      ArgoCD successfully installed in RKE2-APPS cluster
+      Version: {{ argocd_version_apps.stdout }}
+  when: inventory_hostname == 'localhost' 
+
+- name: Wait for ArgoCD pods to be ready in RKE2-MIDDLEWARE
+  ansible.builtin.shell: |
+    kubectl wait --for=condition=Ready pod -l 'app.kubernetes.io/name in (argocd-server,argocd-application-controller,argocd-redis,argocd-dex-server,argocd-repo-server,argocd-notifications-controller,argocd-applicationset-controller)' -n argocd --context=RKE2-MIDDLEWARE --timeout=300s
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: argocd_pods_mw
+  failed_when: argocd_pods_mw.rc != 0
+  retries: 2
+  changed_when: false
+  when: inventory_hostname == 'localhost' 
+
+- name: Verify ArgoCD API in RKE2-MIDDLEWARE
+  ansible.builtin.shell: |
+    kubectl exec -n argocd deployment/argocd-server -- argocd version --client --context RKE2-MIDDLEWARE
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: argocd_version_mw
+  retries: 10
+  delay: 10
+  until: argocd_version_mw.rc == 0
+  changed_when: false
+  when: inventory_hostname == 'localhost' 
+
+- name: Display ArgoCD RKE2-MIDDLEWARE status
+  ansible.builtin.debug:
+    msg: |
+      ArgoCD successfully installed in RKE2-MIDDLEWARE cluster
+      Version: {{ argocd_version_mw.stdout }}
+  when: inventory_hostname == 'localhost'
+
+
+- name: Wait for ArgoCD pods to be ready in RKE2-DMZ
+  ansible.builtin.shell: |
+    kubectl wait --for=condition=Ready pod -l 'app.kubernetes.io/name in (argocd-server,argocd-application-controller,argocd-redis,argocd-dex-server,argocd-repo-server,argocd-notifications-controller,argocd-applicationset-controller)' -n argocd --context=RKE2-DMZ --timeout=300s
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: argocd_pods_dmz
+  failed_when: argocd_pods_dmz.rc != 0
+  retries: 2
+  changed_when: false
+  when: inventory_hostname == 'localhost'
+
+
+- name: Verify ArgoCD API in RKE2-DMZ
+  ansible.builtin.shell: |
+    kubectl exec -n argocd deployment/argocd-server -- argocd version --client --context RKE2-DMZ
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: argocd_version_dmz
+  retries: 10
+  delay: 10
+  until: argocd_version_dmz.rc == 0
+  changed_when: false
+  when: inventory_hostname == 'localhost'
+
+
+- name: Display ArgoCD RKE2-DMZ status
+  ansible.builtin.debug:
+    msg: |
+      ArgoCD successfully installed in RKE2-DMZ cluster
+      Version: {{ argocd_version_dmz.stdout }}
+  when: inventory_hostname == 'localhost'
+
+
+- name: Login to Vault using token
+  shell: |
+    docker exec -e VAULT_SKIP_VERIFY=true vault vault login {{ vault_token }}
+  when: inventory_hostname == 'vault_vm'
+  become: yes
+
+
+- name: Get ArgoCD initial admin password from RKE2-APPS
+  ansible.builtin.shell: |
+    kubectl get secret argocd-initial-admin-secret -n argocd --context RKE2-APPS -o jsonpath="{.data.password}" | base64 -d
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: argocd_admin_pass_apps
+  changed_when: false
+  when: inventory_hostname == 'localhost' 
+
+- name: Set fact (APPS)
+  set_fact:
+    argocd_admin_pass_apps_stdout: "{{ argocd_admin_pass_apps.stdout }}"
+  when: inventory_hostname == 'localhost' 
+
+- name: Store ArgoCD RKE2-APPS initial admin password in Vault
+  ansible.builtin.shell: |
+    docker exec -e VAULT_SKIP_VERIFY=true vault vault kv put harmonisation/argocd_apps username="admin" password="{{ hostvars['localhost']['argocd_admin_pass_apps_stdout'] }}"
+  when: inventory_hostname == 'vault_vm' 
+  changed_when: false
+  become: yes
+
+
+- name: Get ArgoCD initial admin password from RKE2-MIDDLEWARE
+  ansible.builtin.shell: |
+    kubectl get secret argocd-initial-admin-secret -n argocd --context RKE2-MIDDLEWARE -o jsonpath="{.data.password}" | base64 -d
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: argocd_admin_pass_mw
+  changed_when: false
+  when: inventory_hostname == 'localhost' 
+
+- name: Set fact (MW)
+  set_fact:
+    argocd_admin_pass_mw_stdout: "{{ argocd_admin_pass_mw.stdout }}"
+  when: inventory_hostname == 'localhost' 
+
+- name: Store ArgoCD RKE2-MIDDLEWARE initial admin password in Vault
+  ansible.builtin.shell: |
+    docker exec -e VAULT_SKIP_VERIFY=true vault vault kv put harmonisation/argocd_middleware username="admin" password="{{ hostvars['localhost']['argocd_admin_pass_mw_stdout'] }}"
+  when: inventory_hostname == 'vault_vm'
+  changed_when: false
+  become: yes
+
+
+- name: Get ArgoCD initial admin password from RKE2-DMZ
+  ansible.builtin.shell: |
+    kubectl get secret argocd-initial-admin-secret -n argocd --context RKE2-DMZ -o jsonpath="{.data.password}" | base64 -d
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: argocd_admin_pass_dmz
+  changed_when: false
+  when: inventory_hostname == 'localhost'
+
+
+- name: Set fact (DMZ)
+  set_fact:
+    argocd_admin_pass_dmz_stdout: "{{ argocd_admin_pass_dmz.stdout }}"
+  when: inventory_hostname == 'localhost'
+
+
+- name: Store ArgoCD RKE2-DMZ initial admin password in Vault
+  ansible.builtin.shell: |
+    docker exec -e VAULT_SKIP_VERIFY=true vault vault kv put harmonisation/argocd_dmz username="admin" password="{{ hostvars['localhost']['argocd_admin_pass_dmz_stdout'] }}"
+  when: inventory_hostname == 'vault_vm'
+  changed_when: false
+  become: yes
+

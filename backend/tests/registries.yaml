@@ -1,0 +1,23 @@
+mirrors:
+  "test-registry.test.local:8443":
+    endpoint:
+      - https://dev-registry:443
+configs:
+  "test-registry.test.local:8443":
+    tls:
+      insecure_skip_verify: true
+    auth:
+      username: devops
+      password: devops
+  "dev-registry:443":
+    tls:
+      insecure_skip_verify: true
+    auth:
+      username: devops
+      password: devops
+  "dev-registry:8443":
+    tls:
+      insecure_skip_verify: true
+    auth:
+      username: devops
+      password: devops

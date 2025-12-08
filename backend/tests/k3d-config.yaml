@@ -1,0 +1,39 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: test-cluster
+ports:
+  - port: 8081:80
+    nodeFilters:
+      - loadbalancer
+  - port: 6443:443
+    nodeFilters:
+      - server:0
+registries:
+  config: |
+    mirrors:
+      "localhost:8443":
+        endpoint:
+          - https://registry:443
+      "test-registry.test.local:8443":
+        endpoint:
+          - https://registry:443
+    configs:
+      "localhost:8443":
+        tls:
+          insecure_skip_verify: true
+        auth:
+          username: devops
+          password: devops
+      "test-registry.test.local:8443":
+        tls:
+          insecure_skip_verify: true
+        auth:
+          username: devops
+          password: devops
+options:
+  k3s:
+    extraArgs:
+      - arg: --flannel-backend=vxlan
+        nodeFilters:
+          - server:*

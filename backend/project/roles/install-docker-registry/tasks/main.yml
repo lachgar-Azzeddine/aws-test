@@ -1,0 +1,293 @@
+---
+
+- name: Check if registry is installed  
+  become: true
+  shell: '{{ rv_dregistry_container_exec }} container ls -a --format {% raw %} "{{.Names}}" {% endraw %} --filter "name=registry"'
+  register: is_registry_instaled
+  when:
+    - "'registry' in group_names"
+
+- name: Create target directory on the registry machine
+  become: true
+  file:
+    path: /data/registry/images
+    state: directory
+    mode: '0755'
+  when:
+    - "'registry' in group_names"
+    - "is_registry_instaled.stdout != 'registry'"
+
+# Copy all tar files from the control node to the target machine
+# - name: Copy tar files to the registry machine with rsync
+#   become: true
+#   ansible.builtin.synchronize:
+#     src: /images/
+#     dest: /data/registry/images/
+#     mode: push
+#     rsync_opts:
+#       - "--chmod=F644"
+#   delegate_to: localhost
+#   when:
+#     - "'registry' in group_names"
+#
+- name: Copy tar files to the registry machine
+  become: true
+  copy:
+    src: /images/
+    dest: /data/registry/images/
+    mode: '0644'
+    remote_src: no
+  retries: 10   
+  delay: 1         
+  when:
+    - "'registry' in group_names"
+
+# # Untar all Docker images on the target machine
+
+- name: Load all Docker images from tar files
+  become: true
+  shell: |
+    for tarfile in /data/registry/images/*.tar; do
+      sudo docker load < "$tarfile"
+    done
+  args:
+    executable: /bin/bash
+  when:
+    - "'registry' in group_names"
+    # - "is_registry_instaled.stdout != 'registry'"
+
+
+- name: Copy the extract_images script to the remote machine
+  become: true
+  copy:
+    src: files/extract_images.sh
+    dest: /tmp/extract_images.sh
+    mode: '0755'
+  when:
+    - "'registry' in group_names"
+
+
+- name: Run the script to extract image names and tags
+  become: true
+  shell: "bash /tmp/extract_images.sh /data/registry/images"
+  register: images
+  when:
+    - "'registry' in group_names"
+
+
+
+# - name: check registry is instaled  
+#   become: true
+#   shell: '{{rv_dregistry_container_exec}} container ls -a --format {% raw %} "{{.Names}}"  {% endraw %} --filter "name=registry"'
+#   register: is_registry_instaled
+#   when:
+#     - "'registry' in group_names"
+#     - "is_registry_instaled.stdout != 'registry'"
+
+
+- name: Creates directories for Docker registry
+  become: true
+  file:
+    path: "{{ rv_dregistry_install_dir }}/{{ item }}"
+    state: directory
+  with_items:
+    - dataregistry
+    - certs
+    - auth
+  when:
+    - "'registry' in group_names"
+    - "is_registry_instaled.stdout != 'registry'"
+
+# - name: Create a temporary directory to generate certs on
+#   file:
+#     state: directory
+#     path: /tmp/registry/certs
+#     mode: '0777'
+#   when: inventory_hostname == 'localhost'
+
+# - name: Generate private key
+#   shell: >
+#     openssl req -newkey rsa:2048 -nodes
+#     -keyout /tmp/registry/certs/domain.key
+#     -subj "/C=MA/ST=MA/L=MA/O=SRM-CS/OU=SRM/CN={{ docker_registry_url }}"
+#   args:
+#     creates: /tmp/registry/certs/domain.key
+#   when:
+#     -  "'localhost' in inventory_hostname"
+#     # - "is_registry_instaled.stdout != 'registry'"
+
+# - name: Generate Certificate Signing Request (CSR)
+#   shell: >
+#     openssl req -new
+#     -key /tmp/registry/certs/domain.key
+#     -out /tmp/registry/certs/domain.csr
+#     -subj "/C=MA/ST=MA/L=MA/O=SRM-CS/OU=SRM/CN={{ docker_registry_url }}"
+#   args:
+#     creates: /tmp/registry/certs/domain.csr
+#   when:
+#     -  "'localhost' in inventory_hostname"
+#     # - "is_registry_instaled.stdout != 'registry'"
+
+
+# - name: Create SAN configuration file
+#   copy:
+#     dest: /tmp/registry/certs/san.txt
+#     content: |
+#       subjectAltName=DNS:{{ docker_registry_url }}
+#   when:
+#     -  "'localhost' in inventory_hostname"
+#     # - "is_registry_instaled.stdout != 'registry'"
+
+
+# - name: Generate self-signed certificate
+#   shell: >
+#     openssl x509 -req -days 3650
+#     -in /tmp/registry/certs/domain.csr
+#     -signkey /tmp/registry/certs/domain.key
+#     -out /tmp/registry/certs/domain.crt
+#     -extfile /tmp/registry/certs/san.txt
+#   args:
+#     creates: /tmp/registry/certs/domain.crt
+#   when:
+#     -  "'localhost' in inventory_hostname"
+#     # - "is_registry_instaled.stdout != 'registry'"
+
+
+# - name: Generate OpenSSL configuration file for SAN
+#   template:
+#     src: openssl.cnf.j2
+#     dest: "/tmp/registry/certs/openssl.cnf"
+#   when:
+#     -  "'localhost' in inventory_hostname"
+
+# - name: Generate private key and self-signed certificate
+#   shell: |
+#     openssl req -newkey rsa:2048 -nodes -keyout /tmp/registry/certs/domain.key \
+#     -x509 -days 365 -out /tmp/registry/certs/domain.crt \
+#     -config /tmp/registry/certs/openssl.cnf
+#   args:
+#     creates: "/tmp/registry/certs/domain.key"
+#   when:
+#     -  "'localhost' in inventory_hostname"
+
+
+
+# - name: Copy domain.crt and domain.key to the registry node
+#   copy:
+#     src: "/tmp/registry/certs/{{ item }}"
+#     dest: "{{ rv_dregistry_install_dir }}/certs/{{ item }}"
+#   with_items:
+#     - domain.crt
+#     - domain.key
+#   when: "'registry' in group_names"
+
+
+- name: Create the private key file
+  become: true
+  copy:
+    content: "{{ private_key }}"
+    dest: "{{ rv_dregistry_install_dir }}/certs/domain.key"
+  when: 
+    - "'registry' in group_names"
+    - "is_registry_instaled.stdout != 'registry'"
+
+- name: Create the certificate file
+  become: true
+  copy:
+    content: "{{ certificate }}"
+    dest: "{{ rv_dregistry_install_dir }}/certs/domain.crt"
+  when: 
+    - "'registry' in group_names"
+    - "is_registry_instaled.stdout != 'registry'"
+
+- name: htpasswd gapped
+  shell: "{{rv_dregistry_container_exec}} run --rm --entrypoint htpasswd httpd:2 -Bbn {{ rv_dregistry_user }} {{ rv_dregistry_pass }} > {{ rv_dregistry_install_dir }}/auth/htpasswd"
+  become: true
+  when: 
+    - "'registry' in group_names"
+    - "is_registry_instaled.stdout != 'registry'"
+
+
+- name: install registry gapped
+  become: true
+  shell: '{{rv_dregistry_container_exec}} run  -d \
+      -p 8443:443 \
+      --restart=always \
+      --name registry \
+      -e REGISTRY_HTTP_ADDR=0.0.0.0:443 \
+      -e "REGISTRY_AUTH=htpasswd" \
+      -e "REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm" \
+      -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd \
+      -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.crt \
+      -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \
+      -v {{rv_dregistry_install_dir}}/dataregistry:/var/lib/registry:Z \
+      -v {{rv_dregistry_install_dir}}/auth:/auth:Z \
+      -v {{rv_dregistry_install_dir}}/certs:/certs:Z \
+      
+      registry:2'
+  when: 
+    - "'registry' in group_names"
+    - "is_registry_instaled.stdout != 'registry'"
+
+
+- name: Ensure Docker certs.d directory exists
+  become: true
+  file:
+    path: "/etc/docker/certs.d/{{ docker_registry_url }}:8443"
+    state: directory
+    mode: '777'
+  when: "'localhost' not in group_names"
+
+- name: Create the private key file
+  become: true
+  copy:
+    content: "{{ certificate }}"
+    dest: "/etc/docker/certs.d/{{ docker_registry_url }}:8443/ca.crt"
+  when: "'localhost' not in group_names"
+
+
+# - name: Copy the CA certificate for Docker registry 
+#   become: true
+#   copy:
+#     src: /tmp/registry/certs/domain.crt
+#     dest: "/etc/docker/certs.d/{{ docker_registry_url }}:8443/ca.crt"
+#     owner: root
+#     group: root
+#     mode: '777'
+#   when: "'localhost' not in group_names"
+
+
+- name: Log in to the Docker registry
+  become: true
+  shell: docker login {{ docker_registry_url }}:8443 -u "{{ rv_dregistry_user }}" -p "{{ rv_dregistry_pass }}"
+  args:
+    creates: /home/devops/.docker/config.json
+  when: "'localhost' not in group_names"
+
+- name: Copy remove_prefix.sh to registry machine
+  become: true
+  copy:
+    src: files/remove_prefix.sh
+    dest: /home/devops/remove_prefix.sh
+    mode: '0777'
+    remote_src: no
+  when:
+    - "'registry' in group_names"
+
+- name: Remove unwanted prefix from docker images
+  become: true
+  shell: /home/devops/remove_prefix.sh
+  when: "'registry' in group_names"
+
+
+- name: Tag Docker image for private registry
+  become: true
+  shell: docker tag {{ item }} {{ docker_registry_url }}:8443/{{ item }}
+  loop: "{{ images.stdout_lines }}"
+  when: "'registry' in group_names"
+
+- name: Push Docker image for private registry
+  become: true
+  shell: docker push {{ docker_registry_url }}:8443/{{ item }}
+  loop: "{{ images.stdout_lines }}"
+  when: "'registry' in group_names"

@@ -1,0 +1,174 @@
+- name: Delete harmonisation directory
+  ansible.builtin.file:
+    path: /tmp/harmonisation
+    state: absent
+
+- name: Clone Harmonisation Repo
+  command:
+    cmd: git clone https://{{ gogs_ip }}/devops/harmonisation.git
+    chdir: /tmp
+  environment:
+    GIT_SSL_NO_VERIFY: "true"    
+
+
+- name: Create Keycloak directory
+  file:
+    path: /tmp/harmonisation/keycloak
+    state: directory
+
+
+- name: Copy manifest file from template to new Folder
+  template:
+    src: keycloak-manifest.yaml.j2
+    dest: /tmp/harmonisation/keycloak/keycloak-manifest.yaml
+
+- name: Check git status
+  command: 
+    cmd: git status
+    chdir: /tmp/harmonisation
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  register: diff_result
+
+- name: Add changes to git
+  ansible.builtin.command:
+    cmd: git add .
+    chdir: /tmp/harmonisation
+  when: "'nothing to commit' not in diff_result.stdout"
+
+
+- name: Commit changes
+  ansible.builtin.command:
+    cmd: git commit -m "keycloak Initial commit"
+    chdir: /tmp/harmonisation
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  register: commit_result
+  # failed_when: commit_result.rc != 0 and "nothing to commit" not in commit_result.stderr
+  when: "'nothing to commit' not in diff_result.stdout"
+
+
+- name: Push changes to the repository without SSL verification
+  ansible.builtin.command:
+    cmd: git push -u origin master
+    chdir: /tmp/harmonisation
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  when: "'nothing to commit' not in diff_result.stdout"
+
+
+- name: Render keycloak-argocd-app.yaml with dynamic values
+  template:
+    src: keycloak-argocd-app.yaml.j2
+    dest: /tmp/keycloak-argocd-app.yaml
+
+
+- name: Apply Keycloak Argocd manifest on MIDDLEWARE
+  k8s:
+    state: present
+    src: /tmp/keycloak-argocd-app.yaml
+    context: RKE2-MIDDLEWARE
+  environment:
+    KUBECONFIG: /home/devops/.kube/config
+
+
+- name: Delete harmonisation directory
+  ansible.builtin.file:
+    path: /tmp/harmonisation
+    state: absent
+
+- name: Wait for Keycloak to become available
+  uri:
+    url: "https://{{ lblan_ip }}/"
+    method: GET
+    return_content: yes
+    headers:
+      Host: "{{ prefix }}keycloak.{{ base_domain }}"
+    validate_certs: no
+  register: keycloak_check
+  retries: 20
+  delay: 5
+  until: keycloak_check.status == 200
+
+# - name: Get admin access token
+#   uri:
+#     url: "https://{{ lblan_ip }}/realms/master/protocol/openid-connect/token"
+#     method: POST
+#     headers:
+#       Content-Type: "application/x-www-form-urlencoded"
+#       Host: "{{ prefix }}keycloak.{{ base_domain }}"
+#     validate_certs: no
+#     body: "client_id=admin-cli&username=admin_user&password=Admin_Password&grant_type=password"
+#     body_format: form-urlencoded
+#     return_content: yes
+#   register: token_response
+
+# - name: Set access token fact
+#   set_fact:
+#     kc_token: "{{ token_response.json.access_token }}"
+
+# - name: Get LDAP provider ID by name (Interne)
+#   uri:
+#     url: "https://{{ lblan_ip }}/admin/realms/lydecexternal/components"
+#     method: GET
+#     headers:
+#       Authorization: "Bearer {{ kc_token }}"
+#       Host: "{{ prefix }}keycloak.{{ base_domain }}"
+#     validate_certs: no
+#     return_content: yes
+#   register: components_response
+
+# - name: Set LDAP provider ID (Interne)
+#   set_fact:
+#     ldap_provider_id: "{{ components_response.json | selectattr('name', 'equalto', 'Lydec-LDAP') | selectattr('providerId', 'equalto', 'ldap') | map(attribute='id') | list | first }}"
+
+# - name: Fail if LDAP provider ID not found
+#   fail:
+#     msg: "LDAP provider 'Lydec-LDAP' not found"
+#   when: ldap_provider_id is not defined
+
+# - name: Update LDAP configuration (Interne)
+#   uri:
+#     url: "https://{{ lblan_ip }}/admin/realms/lydecexternal/components/{{ ldap_provider_id }}"
+#     method: PUT
+#     headers:
+#       Authorization: "Bearer {{ kc_token }}"
+#       Content-Type: "application/json"
+#       Host: "{{ prefix }}keycloak.{{ base_domain }}"
+#     validate_certs: no
+#     body: "{{ lookup('template', 'templates/ldap_interne_config.json.j2') }}"
+#     body_format: json
+#     status_code: 204
+
+# - name: Get LDAP provider ID by name (Externe)
+#   uri:
+#     url: "https://{{ lblan_ip }}/admin/realms/lydecexternal/components"
+#     method: GET
+#     headers:
+#       Authorization: "Bearer {{ kc_token }}"
+#       Host: "{{ prefix }}keycloak.{{ base_domain }}"
+#     validate_certs: no
+#     return_content: yes
+#   register: components_response
+
+# - name: Set LDAP provider ID (Externe)
+#   set_fact:
+#     ldap_provider_id: "{{ components_response.json | selectattr('name', 'equalto', 'User-Externe-LDAP') | selectattr('providerId', 'equalto', 'ldap') | map(attribute='id') | list | first }}"
+
+# - name: Fail if LDAP provider ID not found
+#   fail:
+#     msg: "LDAP provider 'User-Externe-LDAP' not found"
+#   when: ldap_provider_id is not defined
+
+# - name: Update LDAP configuration (Externe)
+#   uri:
+#     url: "https://{{ lblan_ip }}/admin/realms/lydecexternal/components/{{ ldap_provider_id }}"
+#     method: PUT
+#     headers:
+#       Authorization: "Bearer {{ kc_token }}"
+#       Content-Type: "application/json"
+#       Host: "{{ prefix }}keycloak.{{ base_domain }}"
+#     validate_certs: no
+#     body: "{{ lookup('template', 'templates/ldap_externe_config.json.j2') }}"
+#     body_format: json
+#     status_code: 204

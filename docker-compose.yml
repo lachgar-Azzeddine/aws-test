@@ -1,0 +1,87 @@
+# =============================================================================
+# MINIMAL TEST SETUP - Backend + PostgreSQL Only
+# =============================================================================
+# Frontend, Nginx, Corteza removed - API accessed directly
+# Backend API available at: http://localhost:8008
+# =============================================================================
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    image: backend-harmonisation:latest
+    mem_limit: 4g
+    cpu_shares: 1024
+    restart: unless-stopped
+    ports:
+      - "8008:8008"  # Expose API directly (no nginx proxy)
+    environment:
+      DATABASE_URL: "postgresql://harmonisation:harmonisation@postgres:5432/harmonisation"
+    volumes:
+      - ./data/.ssh/:/home/devops/.ssh/
+      - ./data/db:/home/devops/db
+      - ./data/.kube:/home/devops/.kube
+      - ./data/inventory:/home/devops/inventory
+      - ./data/env:/home/devops/env
+      - ./data/terraform/apps:/home/devops/terraform/apps
+      - ./data/terraform/infra:/home/devops/terraform/infra
+      - ./data/terraform/dmz:/home/devops/terraform/dmz
+      - ./images:/images
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"  # Expose PostgreSQL for direct access (debugging)
+    environment:
+      POSTGRES_USER: harmonisation
+      POSTGRES_PASSWORD: harmonisation
+    healthcheck:
+      {
+        test: ["CMD-SHELL", "pg_isready -U harmonisation"],
+        interval: 10s,
+        timeout: 5s,
+        retries: 5,
+      }
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./db_init:/docker-entrypoint-initdb.d
+    networks:
+      - internal
+
+networks:
+  internal: {}
+
+# =============================================================================
+# REMOVED SERVICES (from production setup):
+# - nginx (no reverse proxy needed)
+# - corteza (low-code platform not needed for testing)
+# - frontend (Angular UI not needed for testing)
+# =============================================================================
+
+# =============================================================================
+# USAGE:
+#
+# 1. Start services:
+#    docker compose up -d
+#
+# 2. View logs:
+#    docker logs backend -f
+#
+# 3. Access API:
+#    curl http://localhost:8008/docs  (Swagger UI)
+#
+# 4. Access PostgreSQL:
+#    psql -h localhost -U harmonisation -d harmonisation
+#
+# 5. Stop services:
+#    docker compose down
+# =============================================================================

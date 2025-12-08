@@ -1,0 +1,8 @@
+rancher/rancher:v2.10-head
+
+rancher/rancher-agent:v2.10-e130b4bcc6909028d3aaa0d92aeab6b06f88665a-head
+
+rancher/shell:v0.3.0
+
+rancher/rancher-webhook:v0.6.1
+

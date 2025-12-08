@@ -1,0 +1,260 @@
+#tasks/main.yml
+
+- name: Ensure /etc/rancher/rke2 directory exists
+  become: true
+  file:
+    path: /etc/rancher/rke2
+    state: directory
+    mode: '0755'
+  when: "'localhost' not in inventory_hostname"
+
+- name: Create RKE2 configuration directory
+  become: true
+  file:
+    path: "{{rke2_config_dir}}"
+    state: directory
+  when: "'localhost' not in inventory_hostname"
+
+# - name: Set permissions to install folder
+#   ansible.builtin.file:
+#     path: "/home/devops/rke2-artifacts"
+#     mode: "0777"
+#     recurse: yes
+  # become: true
+
+- name: Create registries.yaml for containerd
+  become: true
+  copy:
+    dest: /etc/rancher/rke2/registries.yaml
+    content: |
+      mirrors:
+        docker.io:
+          endpoint:
+            - "https://{{ registry_url }}"
+      configs:
+        "{{ registry_url }}":
+          auth:
+            username: devops # this is the registry username
+            password: devops # this is the registry password
+          tls:
+            insecure_skip_verify:  true # may be set to true to skip verifying the registry's certificate
+    mode: '777'
+  when: "'localhost' not in inventory_hostname"
+
+
+- name: Run RKE2 install script on initial master
+  become: true
+  shell: sh {{ install_script }}
+  environment:
+    INSTALL_RKE2_ARTIFACT_PATH: /home/devops/rke2-artifacts
+    INSTALL_RKE2_TYPE: "server"
+  when: inventory_hostname in groups['initial_master']
+
+- name: Run RKE2 install script on master nodes
+  become: true
+  shell: sh {{ install_script }}
+  environment:
+    INSTALL_RKE2_ARTIFACT_PATH: /home/devops/rke2-artifacts
+    INSTALL_RKE2_TYPE: "server"
+  when: inventory_hostname in groups['masters']
+
+- name: Run RKE2 install script on worker nodes
+  become: true
+  shell: sh {{ install_script }}
+  environment:
+    INSTALL_RKE2_ARTIFACT_PATH: /home/devops/rke2-artifacts
+    INSTALL_RKE2_TYPE: "agent"
+  when: inventory_hostname in groups['workers']
+
+- name: Create RKE2 configuration file
+  become: true
+  template:
+    src: config.yaml.j2
+    dest: "{{rke2_config_dir}}/config.yaml"
+  when: "'localhost' not in inventory_hostname"
+
+- name: Enable and start RKE2 server on initial master
+  become: true
+  systemd:
+    name: "rke2-server"
+    enabled: true
+    state: started
+  when: inventory_hostname in groups['initial_master']
+
+- name: Enable and start RKE2 server on master nodes
+  become: true
+  systemd:
+    name: "rke2-server"
+    enabled: true
+    state: started
+  when: inventory_hostname in groups['masters']
+
+- name: Enable and start RKE2 agent on worker nodes
+  become: true
+  systemd:
+    name: "rke2-agent"
+    enabled: true
+    state: started
+  when: inventory_hostname in groups['workers']
+
+#Task to copy kubeconfig from the remote node and update the server IP locally
+- name: Fetch config.yaml from initial master
+  fetch:
+    src: "{{rke2_config_dir}}/rke2.yaml"  # Path on the remote host
+    dest: "/home/devops/.kube/temp-config.yaml"  # Destination on the control node
+    flat: yes
+  become: true
+  # delegate_to: 10.97.235.5
+  when: inventory_hostname in groups['initial_master']
+
+
+# Task to replace 127.0.0.1 with the initial master's IP in the temporary kubeconfig
+- name: Replace 127.0.0.1 with initial master's IP in the temporary kubeconfig
+  command: >
+    sed -i 's/127.0.0.1/{{ hostvars[groups["initial_master"][0]].ansible_host }}/g' /home/devops/.kube/temp-config.yaml
+  when: inventory_hostname in groups['localhost']
+
+# Task that replaces the default cluster name with {{ cluster_name }} in the temporary kubeconfig
+- name: Replace default cluster name with {{ cluster_name }} in the temporary kubeconfig
+  command: >
+    sed -i 's/name: default/name: {{ cluster_name }}/' /home/devops/.kube/temp-config.yaml
+  when: inventory_hostname in groups['localhost']
+
+- name: Update context cluster reference to {{ cluster_name }} in the temporary kubeconfig
+  command: >
+    sed -i 's/cluster: default/cluster: {{ cluster_name }}/' /home/devops/.kube/temp-config.yaml
+  when: inventory_hostname in groups['localhost']
+
+# Replace default username with {{ cluster_name }} in the temporary kubeconfig
+- name: Replace default username with {{ cluster_name }} in the temporary kubeconfig
+  command: >
+    sed -i 's/user: default/user: {{ cluster_name }}/' /home/devops/.kube/temp-config.yaml
+  when: inventory_hostname in groups['localhost']
+  
+# # Task to rename the context in the temporary kubeconfig to 'RKE-APPS'
+# - name: Rename context in temporary kubeconfig to 'RKE-APPS'
+#   command: >
+#     kubectl config --kubeconfig=/home/devops/.kube/temp-config.yaml rename-context default {{ cluster_name }}
+#   when: inventory_hostname in groups['localhost']
+
+# Task to merge the new kubeconfig into the existing kubeconfig file
+- name: Merge temporary kubeconfig into main kubeconfig
+  command: kubectl config view --flatten --merge
+  environment:
+    KUBECONFIG: "/home/devops/.kube/config:/home/devops/.kube/temp-config.yaml"
+  register: merged_kubeconfig
+  when: inventory_hostname in groups['localhost']
+
+# Task to save merged kubeconfig
+- name: Save merged kubeconfig to main config file
+  copy:
+    content: "{{ merged_kubeconfig.stdout }}"
+    dest: "/home/devops/.kube/config"
+  when: inventory_hostname in groups['localhost']
+
+# Task to remove the temporary kubeconfig file
+- name: Remove temporary kubeconfig file
+  file:
+    path: "/home/devops/.kube/temp-config.yaml"
+    state: absent
+  when: inventory_hostname in groups['localhost']
+
+- name: set context to RKE2-APPS
+  command: kubectl config use-context RKE2-APPS
+  # become : true
+  environment:
+    KUBECONFIG: "/home/devops/.kube/config"
+  when: inventory_hostname in groups['localhost']  
+
+- name: Label each node to create default disk setting
+  command: kubectl  label nodes {{ item | lower }} node.longhorn.io/create-default-disk=true --overwrite
+  loop: "{{ groups['cns'] }}"
+  # become : true
+  environment:
+    KUBECONFIG: "/home/devops/.kube/config"
+  when: inventory_hostname in groups['localhost']
+
+- name: Label each node to create default disk setting
+  # Configure label prefix with your domain: {{ base_domain }}/persistance-node=true
+  command: kubectl label nodes {{ item | lower }} storage/persistance-node=true --overwrite
+  loop: "{{ groups['cns'] }}"
+  environment:
+    KUBECONFIG: "/home/devops/.kube/config"
+  when: inventory_hostname in groups['localhost']
+
+- name: create readonly kubeconfig for devs
+  ansible.builtin.shell: |
+    shell files/readonly-kc-setup.sh | bash
+  environment:
+    KUBECONFIG: "/home/devops/.kube/config"
+  when: inventory_hostname in groups['localhost']
+
+#install longhorn
+
+# - name: Check longhorn requirements 
+#   become: true
+#   local_action:
+#     module: shell files/environment_check.sh | bash
+#   when: inventory_hostname in groups['initial_master'] or groups['masters'] or groups['workers']
+
+
+# - name: Label each node to create default disk setting
+#   command: kubectl label nodes {{ item | lower }} node.longhorn.io/create-default-disk=true --overwrite
+#   loop: "{{ groups['initial_master'] + groups['masters'] + groups['workers'] }}"
+#   become : true
+#   when: inventory_hostname in groups['cns']
+
+
+# - name: check /var/lib/longhorn directory 
+#   file:
+#     path: /var/lib/longhorn
+#     state: directory
+#     mode: '0777'
+#   become: true
+#   when: inventory_hostname in groups['cns']
+
+
+
+# - name: Add the Longhorn Helm repository
+#   delegate_to: localhost
+#   command: helm repo add longhorn https://charts.longhorn.io
+#   register: longhorn_repo_added
+#   changed_when: "'Longhorn' in longhorn_repo_added.stdout or 'has been added' in longhorn_repo_added.stdout"
+#   when: inventory_hostname in groups['localhost']
+
+
+# - name: Update the Helm repositories
+#   delegate_to: localhost
+#   command: helm repo update
+#   when: longhorn_repo_added.changed
+#   when: inventory_hostname in groups['localhost']
+
+# - name: Copy custom values file to the target node
+#   copy:
+#     src: values.yaml
+#     dest: /tmp/values.yaml
+#   when: inventory_hostname in groups['localhost']
+
+# - name: Install Longhorn using Helm
+#   command: helm upgrade --install longhorn longhorn/longhorn  --namespace longhorn-system --values /tmp/values.yaml --create-namespace
+#   register: longhorn_installed
+#   when: inventory_hostname in groups['localhost']
+
+# - name: check longhorn installed
+#   debug:
+#     var: longhorn_installed.stdout
+#   when: inventory_hostname in groups['localhost']
+
+# - name: Copy Longhorn Ingress to localhost
+#   copy:
+#     src: files/longhorn-ingress.yaml
+#     dest: /tmp/longhorn-ingress.yaml
+#   become: true
+
+# - name: Apply Longhorn Ingress
+#   command: kubectl apply -f /tmp/longhorn-ingress.yaml
+#   become: true
+#   when: "'localhost' in inventory_hostname"
+
+
+

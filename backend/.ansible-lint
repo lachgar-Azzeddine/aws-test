@@ -1,0 +1,3 @@
+---
+skip_list:
+  - schema[tasks]  # Skip the incorrect "block" property check

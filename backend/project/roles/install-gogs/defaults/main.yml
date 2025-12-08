@@ -1,0 +1,7 @@
+---
+gogs_data_dir: /data/gogs
+# admin_user: devops
+# admin_password: devops
+# Configure admin email for your domain
+admin_email: admin@example.com
+ssl_cert_dir: /data/ssl

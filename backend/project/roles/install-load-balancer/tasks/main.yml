@@ -1,0 +1,68 @@
+---
+- name: Create a haproxy folder
+  file:
+    path: "/home/devops/haproxy"
+    state: directory     
+    mode: '0755'      
+  when: inventory_hostname != 'localhost'
+- name: Create a certs folder
+  file:
+    path: "/home/devops/haproxy/certs"
+    state: directory      
+    mode: '0755' 
+  when: inventory_hostname != 'localhost'
+
+- name: copy pem certificate
+  copy:
+    src: "{{pem_file}}"
+    dest: "/home/devops/haproxy/certs/crt.pem"
+  when: inventory_hostname != 'localhost'
+
+- name: Generate docker-compose.yaml LAN  from template
+  template:
+    src: docker-compose-lan.yaml.j2
+    dest: /home/devops/haproxy/docker-compose.yaml
+    mode: '0644'
+  when: inventory_hostname == 'LB_LAN'
+
+- name: Generate docker-compose.yaml Integration from template
+  template:
+    src: docker-compose-integration.yaml.j2
+    dest: /home/devops/haproxy/docker-compose.yaml
+    mode: '0644'
+  when: inventory_hostname == 'LB_INTEGRATION'
+
+- name: Generate haproxy.cfg from template of lan config
+  template:
+    src: haproxy-LAN.cfg.j2
+    dest: /home/devops/haproxy/haproxy.cfg
+    mode: '0644'
+  when: inventory_hostname == 'LB_LAN'
+
+- name: Generate docker-compose.yaml DMZ from template
+  template:
+    src: docker-compose-dmz.yaml.j2
+    dest: /home/devops/haproxy/docker-compose.yaml
+    mode: '0644'
+  when: inventory_hostname == 'LB_DMZ'
+
+- name: Generate haproxy.cfg from template of dmz config
+  template:
+    src: haproxy-DMZ.cfg.j2
+    dest: /home/devops/haproxy/haproxy.cfg
+    mode: '0644'
+  when: inventory_hostname == 'LB_DMZ'
+
+- name: Generate haproxy.cfg from template of integration config
+  template:
+    src: haproxy-INTEGRATION.cfg.j2
+    dest: /home/devops/haproxy/haproxy.cfg
+    mode: '0644'
+  when: inventory_hostname == 'LB_INTEGRATION'
+
+- name: Run Docker Compose to start Haproxy
+  become: true
+  command: 
+   cmd: docker compose up -d 
+   chdir: /home/devops/haproxy
+  when: inventory_hostname != 'localhost'

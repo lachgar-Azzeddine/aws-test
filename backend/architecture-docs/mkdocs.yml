@@ -1,0 +1,175 @@
+site_name: SRM-CS Platform Harmonisation Architecture
+site_description: Comprehensive architecture documentation for the SRM-CS Harmonisation platform
+site_author: RABBAH
+# Repository information (optional)
+# repo_url: https://github.com/your-org/srm-cs
+# repo_name: srm-cs/runner
+
+# Documentation directory
+docs_dir: docs
+
+# Output directory
+site_dir: site
+
+# Theme configuration
+theme:
+  name: material
+  language: en
+
+  # Color scheme
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+  # Features
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.tracking
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - toc.follow
+
+  # Icons
+  icon:
+    repo: fontawesome/brands/git-alt
+
+  # Favicon and logo (customize if you have icons)
+  # favicon: assets/images/favicon.png
+  # logo: assets/images/logo.png
+
+# Plugins
+plugins:
+  - search:
+      lang:
+        - en
+        - fr
+
+  # i18n plugin for bilingual support
+  - i18n:
+      docs_structure: folder
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+          site_name: SRM-CS Platform Harmonisation Architecture
+        - locale: fr
+          name: Français
+          build: true
+          site_name: Architecture de la Plateforme d'Harmonisation SRM-CS
+          nav_translations:
+            Home: Accueil
+            Deployment Process: Processus de Déploiement
+            Components: Composants
+            Infrastructure Layer: Couche Infrastructure
+            Middleware Layer: Couche Middleware
+            Application Layer: Couche Application
+            External Services: Services Externes
+            Dependencies & Communication: Dépendances & Communication
+            Virtual Machines & Networks: Machines Virtuelles & Réseaux
+            VM Configurations: Configurations des VMs
+            Flow Matrix: Matrice de Flux
+
+  # Mermaid diagrams
+  - mermaid2:
+      version: 10.6.1
+
+  # Minify HTML for smaller files
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
+      cache_safe: true
+
+# Navigation structure
+nav:
+  - Home: index.md
+  - Deployment Process: deployment-process.md
+  - Components:
+      - Infrastructure Layer: components/infrastructure.md
+      - Middleware Layer: components/middleware.md
+      - Application Layer: components/applications.md
+      - External Services: components/external-services.md
+  - Dependencies & Communication: dependencies.md
+  - Virtual Machines & Networks:
+      - Overview: infrastructure/vms-and-networks.md
+      - VM Configurations: infrastructure/vm-configurations.md
+      - Flow Matrix: infrastructure/flow-matrix.md
+
+# Markdown extensions
+markdown_extensions:
+  # Python Markdown
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+  # PyMdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Extra CSS (if needed for customization)
+# extra_css:
+#   - stylesheets/extra.css
+
+# Extra JavaScript (if needed)
+# extra_javascript:
+#   - javascripts/extra.js
+
+# Footer
+extra:
+  generator: false
+  social:
+    - icon: fontawesome/solid/book
+      link: #
+      name: Documentation

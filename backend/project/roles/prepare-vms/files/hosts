@@ -1,0 +1,13 @@
+127.0.0.1   localhost
+::1         localhost
+4.251.124.139  harmonisation.docker
+10.97.235.80 rkeapp1.dev.lydec.wnet
+10.97.235.81 rkeapp2.dev.lydec.wnet
+10.97.235.82 rkeapp3.dev.lydec.wnet
+10.97.235.83 rkemiddleware1.dev.lydec.wnet
+10.97.235.84 rkemiddleware2.dev.lydec.wnet
+10.97.235.85 rkemiddelware3.dev.lydec.wnet
+10.97.235.86 lb1.dev.lydec.wnet
+10.97.235.87 gitops.dev.lydec.wnet gogs.dev.lydec.wnet registry.dev.lydec.wnet
+10.97.235.88 monitoring.dev.lydec.wnet
+10.97.235.89 vault.dev.lydec.wnet

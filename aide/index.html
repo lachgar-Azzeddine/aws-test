@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Aide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <link rel="stylesheet" href="./aide.css" >
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+
+<body>
+    <div class="row main p-3">
+        <div class="col-2">
+            <nav id="navbar-example3" class="h-100 flex-column align-items-stretch pe-4 border-end">
+                <nav class="nav nav-pills flex-column">
+                    <a class="nav-link" href="#nested-1">Rappel des objectifs</a>
+                    <a class="nav-link" href="#nested-2">Étapes d’installation</a>
+                    <nav class="nav nav-pills flex-column">
+                        <a class="nav-link ms-3 my-1" href="#nested-2-1">
+                            Prérequis
+                        </a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-2">
+                            Opérations avant installation
+                        </a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-3">Lancement de l'installation du wizard</a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-4">Installation des modules</a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-5">Sélection des solutions</a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-6">Choix du
+                            Palier</a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-7">Choix de
+                            l’hyperviseur </a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-8">Paramétrage Database</a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-9">Paramétrage Monitoring</a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-10">Paramétrage Sécurité</a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-11">Paramétrage Réseaux</a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-12">Paramétrage des services</a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-13">Récapitulatif</a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-14">Progression d’installation</a>
+                        <a class="nav-link ms-3 my-1" href="#nested-2-15">Récupération des clés d’accès au Vault</a>
+                    </nav>
+                    <a class="nav-link" href="#nested-3">Exploitation des outils et des
+                        applications</a>
+                    <nav class="nav nav-pills flex-column">
+                        <a class="nav-link ms-3 my-1" href="#nested-3-1">Accès
+                            aux applications/middlewares déployés</a>
+                          <a class="nav-link ms-3 my-1" href="#nested-3-2">Accès au Vault</a>  
+                        <a class="nav-link ms-3 my-1" href="#nested-3-3">Récupération des Fichiers Kubeconfig</a>
+                    </nav>
+                </nav>
+            </nav>
+        </div>
+
+        <div class="col-10">
+            <div data-bs-spy="scroll" data-bs-target="#navbar-example3" data-bs-smooth-scroll="true"
+                class="scrollspy-example-2" tabindex="0" style="height: 900px; overflow-y: scroll;">
+                <div class=" py-3 px-4  rounded-2 mb-3">
+                    <h2 id="nested-1" class=" fw-bold mb-2">1 – Rappel des objectifs</h2>
+                    <p class="fs-20">
+                        Les principaux objectifs du projet sont :
+                    </p>
+                    <ul>
+                        <li><span>Automatisation du déploiement :</span> Mise en place d’une approche Infrastructure as
+                            Code
+                            (IaC) pour automatiser le déploiement des infrastructures, outils d'intégration et
+                            applications,
+                            garantissant des mises en production rapides, fiables et répétables.</li>
+                        <li>
+                            <span>Harmonisation architecturale vers les micro-services : </span> Migration progressive
+                            vers
+                            une
+                            architecture micro-services pour simplifier la maintenance, améliorer l’intégration avec
+                            des
+                            systèmes tiers, accélérer l’évolution des applications et limiter les perturbations en
+                            production.
+                        </li>
+                        <li>
+                            <span>Autonomisation des propriétaires d’applications : </span> Facilitation de la gestion
+                            des
+                            configurations et ajustements grâce à des interfaces d’administration centralisées et
+                            intuitives,
+                            renforçant ainsi l’autonomie des équipes.
+                        </li>
+                        <li>
+                            <span>Déploiements Cloud Ready : </span>Conception de solutions optimisées pour le cloud
+                            avec
+                            une
+                            documentation complète, permettant une gestion autonome et une adaptation fluide aux
+                            environnements
+                            modernes.
+                        </li>
+                        <li>
+                            <span>Respect des délais et gouvernance projet : </span>Exécution rigoureuse du projet, avec
+                            un
+                            objectif de finalisation complète sous 18 mois.
+                        </li>
+                    </ul>
+
+
+                    <h2 id="nested-2" class=" fw-bold mb-2">2 – Etapes d’installation</h2>
+                    <h3 id="nested-2-1">Prérequis</h3>
+                    <p>Avant de commencer l'installation, veuillez vous assurer que votre environnement respecte les
+                        prérequis
+                        suivants :</p>
+                    <ol>
+                        <li>
+                            <strong>Machine bastion :</strong>
+                            <ul>
+                                <li>CPU : 4 cœurs minimum</li>
+                                <li>RAM : 8 Go minimum</li>
+                                <li>Stockage : 80 Go d'espace disque disponible</li>
+                            </ul>
+                        </li>
+                        <li>
+                            <strong>Système d'exploitation :</strong>
+                            <ul>
+                                <li>Une distribution Linux est requise (ex: Ubuntu, Red Hat Enterprise Linux).</li>
+                            </ul>
+                        </li>
+                        <li>
+                            <strong>Logiciels :</strong>
+                            <ul>
+                                <li>Docker et Docker Compose doivent être installés et fonctionnels.</li>
+                                <li>Pour l'installation, suivez la documentation officielle :
+                                    <ul>
+                                        <li>Docker : <a target="_blank"
+                                                href="https://docs.docker.com/engine/install/">https://docs.docker.com/engine/install/</a>
+                                        </li>
+                                        <li>Docker Compose : <a target="_blank"
+                                                href="https://docs.docker.com/compose/install/">https://docs.docker.com/compose/install/</a>
+                                        </li>
+                                    </ul>
+                                </li>
+                                <li>Docker et Docker Compose doivent être installés en exécutant les commandes
+                                    suivantes :
+                                    <br>
+                                    <div class="command-container">
+                                        <pre
+                                            class="command-block"><code>yum config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+yum install -y docker-ce docker-ce-cli containerd.io
+systemctl enable docker
+systemctl start docker</code></pre>
+                                        <button class="copy-button"><i class="fas fa-clipboard"></i></button>
+                                    </div>
+                                </li>
+                                <span class="nb-text mt-2">
+                                    <strong>Note : </strong>L'utilisateur doit être ajouté au groupe sudo pour
+                                    installer et
+                                    configurer Docker.
+                                </span>
+                            </ul>
+                        </li>
+                    </ol>
+
+                    <h3 id="nested-2-2">Opérations avant installation</h3>
+                    <p>Cette section décrit les étapes préparatoires avant de lancer l'installateur.</p>
+                    <ol>
+                        <li>
+                            <strong>Récupération du dossier d'installation :</strong><br>
+                            <p>Assurez-vous d'avoir accès au dossier d'installation. <strong class="note">Toutes les
+                                    commandes
+                                    ci-dessous doivent être exécutées depuis la racine de ce dossier</strong>.
+                            </p>
+                            <!-- <br> -->
+                            Le dossier doit contenir l'arborescence suivante :<br>
+                            <img src="./imgs/arbo.png" class="my-2" style="width: 20%"
+                                alt="Arborescence du dossier d'installation" />
+                        </li>
+                        <li class="mt-3">
+                            <strong>Suppression d'une installation précédente (Optionnelle) :</strong><br>
+                            Si vous avez une installation existante et que vous souhaitez la supprimer, exécutez le
+                            script de
+                            suppression
+                            :
+                            <div class="command-container">
+                                <pre class="command-block"><code>sudo chmod -R 777 data/terraform/
+sudo chmod +x ./destroy.sh
+./destroy.sh</code></pre>
+                                <button class="copy-button"><i class="fas fa-clipboard"></i></button>
+                            </div>
+                        </li>
+                        <li class="mt-3">
+                            <strong>Déploiement des images Packer (si nécessaire) :</strong><br>
+                            Si les images de machine virtuelle ne sont pas déjà disponibles dans votre hyperviseur, vous
+                            devez
+                            les construire avec Packer.
+                            <ol>
+                                <li>
+                                    Installez Packer en suivant la <a target="_blank"
+                                        href="https://developer.hashicorp.com/packer/install">documentation
+                                        officielle</a>.
+                                </li>
+                                <li>
+                                    Dans le dossier <code>packer</code> naviguez vers le dossier du template à utiliser
+                                    (par
+                                    exemple, <code>harmo-docker-agents</code>).
+                                </li>
+                                <li>
+                                    Initialisez Packer :
+                                    <div class="command-container">
+                                        <pre class="command-block"><code>packer init .</code></pre>
+                                        <button class="copy-button"><i class="fas fa-clipboard"></i></button>
+                                    </div>
+                                </li>
+                                <li>
+                                    Validez la configuration :
+                                    <div class="command-container">
+                                        <pre class="command-block"><code>packer validate .</code></pre>
+                                        <button class="copy-button"><i class="fas fa-clipboard"></i></button>
+                                    </div>
+                                </li>
+                                <li>
+                                    Lancez la construction de l'image :
+                                    <div class="command-container">
+                                        <pre class="command-block"><code>packer build .</code></pre>
+                                        <button class="copy-button"><i class="fas fa-clipboard"></i></button>
+                                    </div>
+                                </li>
+                            </ol>
+                        </li>
+                    </ol>
+
+                    <h3 id="nested-2-3">Lancement de l'installation du wizard</h3>
+                    <p>Une fois les prérequis et les opérations préliminaires effectués, vous pouvez lancer
+                        l'installation
+                        du
+                        wizard.</p>
+                    <ol>
+                        <li>
+                            Rendez le script d'installation exécutable :
+                            <div class="command-container">
+                                <pre class="command-block"><code>sudo chmod +x ./setup.sh</code></pre>
+                                <button class="copy-button"><i class="fas fa-clipboard"></i></button>
+                            </div>
+                        </li>
+                        <li>
+                            Exécutez le script :
+                            <div class="command-container">
+                                <pre class="command-block"><code>./setup.sh</code></pre>
+                                <button class="copy-button"><i class="fas fa-clipboard"></i></button>
+                            </div>
+
+                        </li>
+                    </ol>
+                    <div class="alert alert-success mt-2">
+                        <p>Une fois le script exécuté, ouvrez votre navigateur web et saisissez directement l'adresse IP
+                            de
+                            la
+                            machine sur laquelle vous avez effectué l'installation. L'interface de configuration sera
+                            alors
+                            accessible via cette adresse.
+                        </p>
+                    </div>
+                    <p>
+                        Vous serez ensuite redirigé vers l'écran de connexion. Veuillez utiliser les identifiants
+                        fournis
+                        pour
+                        vous connecter.
+                    </p>
+                    <img src="./imgs/login.png" style="width: 90%" alt="Écran de connexion" />
+                    <hr>
+
+                    <h3 id="nested-2-4" class="my-2 py-3">Sélection de ‘Installation des modules’</h3>
+                    <img src="./imgs/modules.png" style="width: 90%" />
+                    <h3 class="my-2 py-3" id="nested-2-5">Sélection de EService</h3>
+                    <div class="row">
+                        <div class="col-6">
+                            <img src="./imgs/solutions.png" style="width: 100%" />
+
+                        </div>
+                        <div class="col-6">
+                            <ol>
+                                <li>Cocher ‘Eservice’ et/ou ‘GCO’ pour lancer l’installation</li>
+                                <li>Cliquer sur Suivant</li>
+                            </ol>
+                        </div>
+                    </div>
+                    <hr>
+                    <h3 class="my-2 py-3" id="nested-2-6">Choix du Palier</h3>
+                    <div class="row">
+                        <div class="col-6">
+                            <img src="./imgs/palier.png" style="width: 100%" />
+                        </div>
+                        <div class="col-6">
+                            <ol>
+                                <li>Sélectionner un des 4 paliers possible</li>
+                                <li>Cliquer sur Suivant</li>
+                            </ol>
+                        </div>
+                    </div>
+                    <hr>
+                    <h3 class="my-2 py-3" id="nested-2-7">Choix de l’hyperviseur</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <img src="./imgs/hyperviseur-1.png" style="width: 100%" />
+                        </div>
+                        <div class="col-md-6">
+                            <ul>
+                                <li>1. Renseigner vos données de l’hyperviseur</li>
+                                <li>2. Cliquer sur « Tester la connexion »</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <img src="./imgs/hyperviseur-2.png" style="width: 100%" />
+                        </div>
+                        <div class="col-md-6">
+                            <ul>
+                                <li>3. Si ‘Connexion OK’ cliquer sur le bouton ‘Ajouter’</li>
+                                <li>4. Vérification de l’ajout de la VM</li>
+                                <li>5. Si vous souhaitez modifier une VM, cliquer sur le bouton ‘modifier’.</li>
+                                <li>6. Si vous souhaitez supprimer une VM, cliquer sur le bouton ‘supprimer’</li>
+                                <li>7. Cliquer sur ‘Suivant’ pour passer à l’étape suivante.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <hr>
+                    <h3 class="my-2 py-3" id="nested-2-8">Paramétrage Database</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <img src="./imgs/database-1.png" style="width: 100%" />
+                        </div>
+                        <div class="col-md-6">
+                            <p>Remarque : la liste des bases de données varie selon le choix initial (« Eservice »
+                                et/ou «
+                                GCO
+                                »).</p>
+                            <ul>
+                                <li>1. Cliquer sur le bouton Radio Informix / Postgresql</li>
+                                <li>2. Choisir un type de la base de données </li>
+                                <li>3. Renseignez vos données (l’Utilisateur et le Mot de passe doivent être encodés en
+                                    Base64)
+                                </li>
+                                <li>4. Cliquer sur ‘Tester la connexion’</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <img src="./imgs/database-2.png" style="width: 100%" />
+                        </div>
+                        <div class="col-md-6">
+                            <ul>
+                                <li>5. Si ‘Connexion OK’ cliquer sur le bouton ‘Ajouter’</li>
+                                <li>6. Vérification de l’ajout de la base de données</li>
+                                <li>7. Si vous souhaitez modifier une base de données, cliquer sur le bouton
+                                    ‘modifier’.</li>
+                                <li>8. En cas de souhait de suppression , cliquer sur le bouton ‘supprimer’</li>
+                                <p>Remarque : vous ne pouvez pas cliquer sur « Suivant » sans avoir ajouté toutes les
+                                    bases
+                                    de
+                                    données.</p>
+                                <li>9. Cliquer sur ‘Suivant’ </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <hr>
+                    <h3 class="my-2 py-3" id="nested-2-9">Paramétrage Monitoring</h3>
+                    <img src="./imgs/monitoring.png" style="width: 90%" />
+                    <div>
+                        <ul>
+                            <li>1. Cocher un des deux boutons Radio</li>
+                            <li>2. Cliquer sur Suivant</li>
+                        </ul>
+                    </div>
+                    <hr>
+                    <h3 class="my-2 py-3" id="nested-2-10">Paramétrage Sécurité</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <img src="./imgs/securite.png" style="width: 100%" />
+                        </div>
+                        <div class="col-md-6">
+                            <ol>
+                                <li>Activer ou désactiver l’option « Utiliser un proxy internet »</li>
+                                <li>Renseigner le « Host Proxy »</li>
+                                <li>Renseigner le « Port Proxy »</li>
+                                <li>Renseigner la « Public Key SSH » </li>
+                                <li>Renseigner la « Private Key SSH »</li>
+                                <li>Cliquer sur « Tester SSH Keys » </li>
+                                <li>Renseigner le « Base Domain Name »</li>
+                                <li>Renseigner le préfixe de l’environnement (exemple "pre" pour environnement
+                                    pre-prod).
+                                </li>
+                                <li>Renseigner la certification SSL </li>
+                                <li>Tester le certificat SSL</li>
+                                <li>Cliquer sur « Suivant » </li>
+                            </ol>
+                        </div>
+                    </div>
+                    <hr>
+                    <h3 class="my-2 py-3" id="nested-2-11">Paramétrage Réseaux</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <img src="./imgs/reseaux.png" style="width: 100%" />
+                        </div>
+                        <div class="col-md-6">
+                            <ul>
+                                <li>1. Renseigner vos données pour les trois paramétrages réseaux.</li>
+                                <li>2. Cliquer sur Suivant.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <hr>
+                    <h3 class="my-2 py-3" id="nested-2-12">Paramétrage des services</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <img src="./imgs/services-1.png" style="width: 100%" />
+                        </div>
+                        <div class="col-md-6">
+                            <ul>
+                                <li>1. Choisir un type de service dans la liste déroulante</li>
+                                <li>2. Renseigner les données associées pour chaque type de service</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <img src="./imgs/services-2.png" style="width: 100%" />
+                        </div>
+                        <div class="col-md-6">
+                            <ul>
+                                <li>3. Si vous souhaitez modifier un service, cliquer sur le bouton « Modifier »</li>
+                                <li>4. Si vous souhaitez supprimer un service, cliquer sur le bouton « Supprimer »<br>
+                                    <p>
+                                        Remarque : vous devez ajouter tous les services avant de pouvoir cliquer sur «
+                                        Suivant
+                                        »
+                                    </p>
+                                </li>
+                                <li>5. Cliquer sur « Suivant »</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <hr>
+                    <h3 class="my-2 py-3" id="nested-2-13">Récapitulatif</h3>
+                    <img src="./imgs/recap-1.png" style="width: 90%" />
+                    <p>Le tableau affiche les VM avec des valeurs préremplies (IP, CPU, RAM, disque, OS), que vous
+                        pouvez
+                        modifier si besoin.</p>
+                    <hr>
+                    <img src="./imgs/recap-2.png" style="width: 90%" />
+                    <p>Cliquer sur Démarrer l’installation</p>
+                    <hr>
+                    <h3 class="my-2 py-3" id="nested-2-14">Progression d’installation</h3>
+                    <img src="./imgs/progression.png" style="width: 90%" />
+                    <hr>
+                    <div id="nested-2-15">
+                        <h3 class="my-2 py-3">Récupération des clés d’accès au Vault</h3>
+                        <div class="row">
+                            <div class="col-md-5">
+                                <img src="./imgs/vault-creds.png" style="width: 100%" />
+                            </div>
+                            <div class="col-md-7">
+                                <p>Après une installation réussie, les clés d’accès au Vault deviennent disponibles.
+                                    <br>Par
+                                    défaut,
+                                    ces identifiants sont masqués : vous pouvez cliquer sur l’icône en forme d’œil
+                                    (repère 1
+                                    sur
+                                    l’image) pour les afficher, et sur l’icône de presse-papiers (repère 2 sur l’image)
+                                    pour
+                                    les
+                                    copier.<br>
+                                    <strong class="note">Attention : ces identifiants ne seront plus visibles par la
+                                        suite.
+                                        Assurez-vous de les sauvegarder dans un emplacement sûr avant de
+                                        continuer.</strong><br>
+                                        <strong>Note : la dernière entrée du tableau correspond au token que vous devrez utiliser pour vous connecter au Vault.</strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h2 id="nested-3" class=" fw-bold mb-2">3- Exploitation des outils et des applications
+                    </h2>
+
+                    <h3 class="my-2 py-3" id="nested-3-1">Accès aux applications/middlewares déployés</h3>
+                    <p>
+                        Pour accéder aux applications et middlewares déployés, revenez à la page principale depuis
+                        laquelle
+                        vous
+                        avez lancé l’installation en cliquant sur le bouton de retour.</p>
+                    <div class="d-flex justify-content-center">
+                        <img src="./imgs/quitter-croix.png" style="width: 20%" />
+
+                    </div>
+                    <p>
+                        Une nouvelle liste d’applications y sera affichée, et vous pourrez cliquer sur chacune d’elles
+                        pour
+                        y
+                        accéder.
+                        Avant cela, vous devez toutefois ajouter les liens DNS et leurs adresses IP correspondantes dans
+                        le
+                        fichier <code>hosts</code> de votre machine Windows.<br>Vous pouvez récupérer la liste complète
+                        des
+                        DNS
+                        en accédant à la page “Liste DNS”.</p>
+
+                    <div class="d-flex justify-content-center">
+                        <img src="./imgs/acceuil.png" style="width: 90%" />
+                    </div>
+                    <p>Une liste des DNS et de leurs adresses IP apparaît, cliquer sur le bouton
+                        <strong>Exporter</strong>.
+                    </p>
+                    <div class="d-flex justify-content-center">
+                        <img src="./imgs/dns-list.png" style="width: 90%" />
+                    </div>
+                    <p>Dans le menu, il vous suffit de choisir <strong>export JSON ou CSV</strong>, selon votre
+                        préférence,
+                        pour
+                        exporter facilement la liste complète des DNS et de leurs adresses IP.</p>
+                    <div class="d-flex justify-content-center">
+                        <img src="./imgs/dns-export.png" style="width: 90%" />
+                    </div>
+
+                    <p>
+                        Une fois la liste récupérée, vous pourrez ajouter les entrées DNS dans le fichier
+                        <code>hosts</code>,
+                        qui se trouve généralement à l'emplacement suivant :
+                        <code>C:\Windows\System32\drivers\etc\hosts</code>
+                    </p>
+                    <p>
+                        Les entrées DNS ressembleront à ceci (exemple illustratif) :
+                    </p>
+                    <pre class="command-block"><code># EXEMPLE
+192.168.1.100   app.example.com
+192.168.1.101   middleware.example.com</code></pre>
+                    <hr>
+                    <h3 class="my-2 py-3" id="nested-3-2">Accès au Vault</h3>
+                    <p>
+                        Toutes les applications déployées utilisent des identifiants stockés et gérés dans Vault.<br>
+                        Pour y accéder, retournez d’abord à la liste des applications, puis cliquez sur Vault.<br>
+                        Vous serez alors redirigé vers l’écran de connexion, où vous devrez saisir le token fourni comme indique dans la section <a role="button" href="#nested-2-15"><strong>Récupération
+                                des clés d’accès au Vault</strong></a>.
+                    <div class="d-flex justify-content-center">
+                        <img src="./imgs/vault-login.png" style="width: 60%" />
+                    </div>
+                    <p>Sélectionner <strong>harmonisation</strong></p>
+                    <div class="d-flex justify-content-center">
+                        <img src="./imgs/vault-2.png" style="width: 60%" />
+                    </div>
+                    <p>Une liste de tous les services disponibles dans Vault va apparaître. Il suffit de sélectionner le service souhaité et de copier les identifiants.</p>
+                    <p>
+L'utilisateur peut également taper directement le nom du service dans la barre de recherche, puis copier le nom d’utilisateur et le mot de passe associés pour se connecter.</p>
+                     <div class="d-flex justify-content-center">
+                        <img src="./imgs/vault-3.png" style="width: 60%" />
+                    </div>
+                    <p>Par exemple, en recherchant Keycloak dans la barre de recherche, Vault affichera la fiche du service contenant les identifiants nécessaires. Il suffira alors de les copier pour se connecter à l’interface Keycloak.</p>
+                    <div class="d-flex justify-content-center">
+                        <img src="./imgs/keycloak-1.png" style="width: 50%" />
+                        <img src="./imgs/keycloak-2.png" style="width: 40%" />
+                    </div>
+                    <hr>
+                    <h3 class="my-2 py-3" id="nested-3-3">Récupération des Fichiers Kubeconfig</h3>
+
+<p>
+Sur le dossier d'installation,vous trouverez les fichiers de configuration pour vos clusters Kubernetes dans les répertoires suivants : <br>
+<ul>
+    <li>
+RKE2-APPS: <code>data/.kube/RKE2-APPS-kc-viewer.yaml</code>
+    </li>
+    <li>
+RKE2-MIDDLEWARE: <code>data/.kube/RKE2-MIDDLEWARE-kc-viewer.yaml</code>
+    </li>
+</ul> 
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+        crossorigin="anonymous"></script>
+        <script>
+document.querySelectorAll('.command-container').forEach(container => {
+    const button = container.querySelector('.copy-button');
+    const codeBlock = container.querySelector('code');
+
+    button.addEventListener('click', () => {
+        const text = codeBlock.innerText.trim();
+
+        navigator.clipboard.writeText(text)
+            .then(() => {
+                button.innerText = 'Copié !';
+                setTimeout(() => {
+                    button.innerHTML = '<i class="fas fa-clipboard"></i>';
+                }, 1500);
+            })
+            .catch(err => {
+                console.error('Clipboard error:', err);
+            });
+    });
+});
+</script>
+
+    
+</body>
+
+</html>

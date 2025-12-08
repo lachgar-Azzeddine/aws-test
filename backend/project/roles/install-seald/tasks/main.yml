@@ -1,0 +1,5 @@
+---
+# tasks file for install seald
+- name: just print a message to stdout
+  debug:
+    msg: "process install seald!"

@@ -1,0 +1,12 @@
+network:
+  version: 2
+  ethernets:
+    ens192:
+      dhcp4: false #true to use dhcp
+      addresses:
+        - "${vm_ip}/26" #Set you ip here
+      gateway4: 10.97.235.65 # Set gw here 
+      nameservers:
+        addresses:
+          - 10.97.242.3
+          - 10.97.242.4 # Set DNS ip address here

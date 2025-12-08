@@ -1,0 +1,154 @@
+global
+    log stdout format raw local0
+    maxconn 2000
+    # Enable HAProxy statistics on port 8404 for monitoring
+    stats socket /var/run/haproxy.sock mode 600 level admin
+    stats timeout 30s
+
+defaults
+    log     global
+    option  httplog
+    option  dontlognull
+    option  redispatch
+    retries 3
+    timeout connect 5000ms
+    timeout client  50000ms
+    timeout server  50000ms
+
+# Statistics page
+frontend stats
+    bind *:8404
+    stats enable
+    stats uri /stats
+    stats refresh 30s
+    stats show-node
+
+# ==============================================================================
+# HTTPS FRONTEND - Port 443
+# ==============================================================================
+frontend https_frontend
+    bind *:443 ssl crt /etc/haproxy/certs/crt.pem
+    mode http
+    option httpclose
+
+    # Capture client IP for logging
+    capture request header Host len 100
+    capture request header User-Agent len 200
+
+    # ==============================================================================
+    # ACL DEFINITIONS - Identify traffic type
+    # ==============================================================================
+
+    # Static content detection (file extensions)
+    acl is_static path_end .html .htm .js .css .png .jpg .jpeg .gif .ico .svg .woff .woff2 .ttf .eot .otf .map .json .xml
+
+    # API path detection
+    acl is_api path_beg /api /services /auth /gateway /v1 /v2 /v3
+
+    # Health check and monitoring paths (should go to LAN for admin)
+    acl is_health path_beg /health /ping /metrics /haproxy
+
+    # ============================================================================
+    # ROUTING RULES - Decide where to send traffic
+    # ============================================================================
+
+    # Static content: Route to LB LAN (which will forward to RKEAPPS cluster)
+    # This includes HTML, JS, CSS, images, and other static resources
+    use_backend static_backend if is_static
+
+    # Health checks and monitoring: Route to LB LAN (admin access)
+    use_backend static_backend if is_health
+
+    # API calls: Route to Gravitee DMZ (RKE2-DMZ cluster) for API management
+    use_backend api_backend if is_api
+
+    # Default fallback: Route API traffic to Gravitee DMZ
+    default_backend api_backend
+
+# ==============================================================================
+# STATIC CONTENT BACKEND
+# Forward static content and admin traffic to LB LAN
+# ==============================================================================
+backend static_backend
+    mode http
+    balance roundrobin
+    option httpchk GET /health
+    http-check expect status 200
+
+    # Forward to LB LAN which will route to RKEAPPS cluster
+    server lb_lan {{ lb_lan_ip }}:443 ssl verify none check
+
+# ==============================================================================
+# API BACKEND
+# Forward API calls to Gravitee DMZ (RKE2-DMZ cluster)
+# ==============================================================================
+backend api_backend
+    mode http
+    balance roundrobin
+    option httpchk HEAD / HTTP/1.1\r\nHost:\ localhost
+    http-check expect status 200
+
+    # Backend servers in RKE2-DMZ cluster (Gravitee DMZ)
+    {% for vm in rke_dmz %}
+    server {{ vm.name }}-dmz {{ vm.IP }}:443 ssl verify none check
+    {% endfor %}
+
+# ==============================================================================
+# TCP FRONTEND - Port 32100 (Kafka Bootstrap)
+# ==============================================================================
+frontend kafka_bootstrap_frontend
+    bind *:32100
+    mode tcp
+    option tcplog
+
+    # Forward Kafka bootstrap traffic to LB LAN (which routes to RKEMIDDLEWARE)
+    default_backend kafka_backend
+
+# ==============================================================================
+# TCP BACKEND - Kafka Bootstrap
+# ==============================================================================
+backend kafka_backend
+    mode tcp
+    balance roundrobin
+    option tcplog
+
+    server lb_lan {{ lb_lan_ip }}:32100 check
+
+# ==============================================================================
+# TCP FRONTEND - Ports 31400-31402 (Kafka Brokers)
+# ==============================================================================
+frontend kafka_brokers_frontend
+    bind *:31400-31402
+    mode tcp
+    option tcplog
+
+    # Forward Kafka broker traffic to LB LAN (which routes to RKEMIDDLEWARE)
+    default_backend kafka_brokers_backend
+
+# ==============================================================================
+# TCP BACKEND - Kafka Brokers
+# ==============================================================================
+backend kafka_brokers_backend
+    mode tcp
+    balance source
+    option tcplog
+
+    server lb_lan {{ lb_lan_ip }}:31400-31402 check
+
+# ==============================================================================
+# HTTP REDIRECT - Port 80 to HTTPS
+# ==============================================================================
+frontend http_frontend
+    bind *:80
+    mode http
+    redirect scheme https if !{ ssl_fc }
+
+# ==============================================================================
+# ERROR PAGES
+# ==============================================================================
+errorfile 403 /etc/haproxy/errors/403.http
+errorfile 408 /etc/haproxy/errors/408.http
+errorfile 500 /etc/haproxy/errors/500.http
+errorfile 502 /etc/haproxy/errors/502.http
+errorfile 503 /etc/haproxy/errors/503.http
+errorfile 504 /etc/haproxy/errors/504.http

@@ -1,0 +1,21 @@
+# Vault configuration file
+
+# Storage backend configuration
+storage "file" {
+  path = "/vault/file"  # Path where Vault data will be stored
+}
+
+# Listener configuration
+listener "tcp" {
+  address     = "0.0.0.0:8200"  
+  tls_cert_file = "/vault/config/certs/vault.crt.pem" # Path inside the container
+  tls_key_file  = "/vault/config/certs/vault.key.pem"  # Path inside the container     
+}
+disable_mlock = true
+
+# Enable the Vault UI
+ui = true
+
+# Optional: Logging configuration
+log_level = "info"
+#log_file  = "/vault/logs/vault.log"

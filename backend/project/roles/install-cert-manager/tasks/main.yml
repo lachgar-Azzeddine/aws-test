@@ -1,0 +1,86 @@
+- name: Delete harmonisation directory
+  ansible.builtin.file:
+    path: /tmp/harmonisation
+    state: absent
+
+- name: Clone Harmonisation Repo
+  command:
+    cmd: git clone https://{{ gogs_ip }}/devops/harmonisation.git
+    chdir: /tmp
+  environment:
+    GIT_SSL_NO_VERIFY: "true"    
+
+
+- name: Create cert-manager directory
+  file:
+    path: /tmp/harmonisation/cert-manager
+    state: directory
+
+  
+- name: Copy file from template to new Folder
+  template:
+    src: install-cert-manager.yaml.j2
+    dest: /tmp/harmonisation/cert-manager/install-cert-manager.yaml
+
+- name: Check git status
+  command: 
+    cmd: git status
+    chdir: /tmp/harmonisation
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  register: diff_result
+
+- name: Add changes to git
+  ansible.builtin.command:
+    cmd: git add .
+    chdir: /tmp/harmonisation
+  when: "'nothing to commit' not in diff_result.stdout"
+
+
+- name: Commit changes
+  ansible.builtin.command:
+    cmd: git commit -m "cert-manager Initial commit"
+    chdir: /tmp/harmonisation
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  register: commit_result
+  failed_when: commit_result.rc != 0 and "nothing to commit" not in commit_result.stderr
+  when: "'nothing to commit' not in diff_result.stdout"
+
+
+- name: Push changes to the repository without SSL verification
+  ansible.builtin.command:
+    cmd: git push -u origin master
+    chdir: /tmp/harmonisation
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  when: "'nothing to commit' not in diff_result.stdout"
+
+
+- name: Render cert-manager-argocd-app.yaml with dynamic values
+  template:
+    src: cert-manager-argocd-app.yaml.j2
+    dest: /tmp/cert-manager-argocd-app.yaml
+
+  
+- name: Apply cert-manager Argocd manifest to RKE2-MIDDLEWARE
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/cert-manager-argocd-app.yaml
+    context: RKE2-MIDDLEWARE
+    kubeconfig: "{{ kubeconfig_path }}"
+    namespace: argocd
+
+- name: Apply cert-manager Argocd manifest to RKE2-APPS
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/cert-manager-argocd-app.yaml
+    context: RKE2-APPS
+    kubeconfig: "{{ kubeconfig_path }}"
+    namespace: argocd
+
+- name: Delete harmonisation directory
+  ansible.builtin.file:
+    path: /tmp/harmonisation
+    state: absent
+

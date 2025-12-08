@@ -1,0 +1,3 @@
+---
+rv_dregistry_container_exec: docker
+rv_dregistry_install_dir: "~/.dockerregistry"

@@ -1,0 +1,31 @@
+{
+  "id": "{{ ldap_provider_id }}",
+  "name": "example-LDAP",
+  "providerId": "ldap",
+  "providerType": "org.keycloak.storage.UserStorageProvider",
+  "parentId": "exampleexternal",
+  "config": {
+    "connectionUrl": ["{{ int_ldap_url }}"],
+    "bindCredential": ["{{ int_ldap_password }}"],
+    "usernameLDAPAttribute": ["{{ int_ldap_user_attribute }}"],
+    "editMode": ["WRITABLE"],
+    "fullSyncPeriod": ["3600"],
+    "pagination": ["true"],
+    "connectionPooling": ["true"],
+    "usersDn": ["{{ int_ldap_user_dn }}"],
+    "cachePolicy": ["DEFAULT"],
+    "importEnabled": ["true"],
+    "enabled": ["true"],
+    "bindDn": ["{{ int_ldap_user }}"],
+    "vendor": ["ad"],
+    "uuidLDAPAttribute": ["objectGUID"],
+    "authType": ["simple"],
+    "searchScope": ["{{ int_ldap_search_scope }}"],
+    "useTruststoreSpi": ["ldapsOnly"],
+    "priority": ["1"],
+    "userObjectClasses": ["person, organizationalPerson, user"],
+    "rdnLDAPAttribute": ["sAMAccountName"],
+    "validatePasswordPolicy": ["false"],
+    "batchSizeForSync": ["1000"]
+  }
+}

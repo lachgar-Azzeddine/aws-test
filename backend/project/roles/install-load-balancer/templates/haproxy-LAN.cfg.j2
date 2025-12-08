@@ -1,0 +1,146 @@
+global
+    log stdout format raw local0
+    maxconn 2000
+
+defaults
+    log     global
+    option  httplog
+    option  dontlognull
+    timeout connect 5000ms
+    timeout client  50000ms
+    timeout server  50000ms
+
+# Frontend for HTTPS traffic
+frontend https_frontend
+    bind *:443 ssl crt /etc/haproxy/certs/
+    mode http
+    log global
+    option httplog
+    http-request redirect scheme https unless { ssl_fc }
+
+    acl is_minio_backup hdr_beg(host) -i {{ prefix }}minio-backup
+    acl is_keycloak hdr_beg(host) -i {{ prefix }}keycloak
+    acl is_flowable hdr_beg(host) -i {{ prefix }}flowable
+    acl is_minio hdr_beg(host) -i {{ prefix }}minio
+    acl is_vault hdr_beg(host) -i {{ prefix }}vault
+    acl is_argocd-mw hdr_beg(host) -i {{ prefix }}argocd-mw
+    acl is_neuvector-mw hdr_beg(host) -i {{ prefix }}neuvector-mw
+    acl is_akhq hdr_beg(host) -i {{ prefix }}akhq
+    acl is_coroot hdr_beg(host) -i {{ prefix }}coroot
+    acl is_rancher hdr_beg(host) -i {{ prefix }}rancher
+    acl is_registry hdr_beg(host) -i {{ prefix }}registry
+    acl is_gogs hdr_beg(host) -i {{ prefix }}gogs
+    acl is_n8n hdr_beg(host) -i {{ prefix }}n8n
+
+
+    use_backend rancher_backend if is_rancher
+    use_backend coroot_backend if is_coroot
+    use_backend registry_backend if is_registry
+    use_backend gogs_backend if is_gogs
+    use_backend minio_backup_backend if is_minio_backup
+    use_backend rke_middleware_backend if is_keycloak
+    use_backend rke_middleware_backend if is_flowable
+    use_backend rke_middleware_backend if is_minio
+    use_backend rke_middleware_backend if is_argocd-mw
+    use_backend rke_middleware_backend if is_neuvector-mw
+    use_backend rke_middleware_backend if is_akhq
+    use_backend rke_middleware_backend if is_n8n
+    use_backend vault_backend if is_vault
+    default_backend rke_apps_backend
+
+# Frontend for TCP Kafka ports bootstrap
+frontend kafka_frontend_initial_bootstrap
+    bind *:32100
+    mode tcp
+    default_backend rke_middleware_backend_kafka_bootstrap
+
+
+# Frontend for TCP Kafka
+frontend br0_kafka_frontend
+    bind *:31400
+    mode tcp
+    default_backend br0_kafka_backend
+
+frontend br1_kafka_frontend
+    bind *:31401
+    mode tcp
+    default_backend br1_kafka_backend
+
+frontend br2_kafka_frontend
+    bind *:31402
+    mode tcp
+    default_backend br2_kafka_backend
+
+# Frontend for TCP Coroot monitoring port (direct agent connections)
+frontend coroot_tcp_frontend
+    bind *:8080
+    mode tcp
+    default_backend coroot_tcp_backend
+
+# Backend for RKE Middleware kafka bootstrap
+backend rke_middleware_backend_kafka_bootstrap
+    mode tcp
+    balance roundrobin
+    {% for vm in rke_middleware %}
+    server {{ vm.name }} {{ vm.IP }}:32100 check
+    {% endfor %}
+
+# Backend for kafka brokers
+{% for vm in rke_middleware %}
+
+backend br{{ loop.index0 }}_kafka_backend    
+    server {{ vm.name }} {{ vm.IP }}:3140{{ loop.index0 }} check
+    {% endfor %}
+
+
+# Backend for RKE Apps
+backend rke_apps_backend
+    mode http
+    balance roundrobin
+    {% for vm in rke_apps %}
+    server {{ vm.name }} {{ vm.IP }}:443 ssl verify none check
+    {% endfor %}
+
+# Backend for RKE Middleware
+backend rke_middleware_backend
+    mode http
+    balance roundrobin
+    {% for vm in rke_middleware %}
+    server {{ vm.name }} {{ vm.IP }}:443 ssl verify none check
+    {% endfor %}
+
+# Backend for Vault
+backend vault_backend
+    mode http
+    server vault {{ vault_ip }}:8200 ssl verify none check
+
+# Backend for minio_backup
+backend minio_backup_backend
+    mode http
+    server vault {{ monitoring_ip }}:9001 ssl verify none check
+
+
+# Backend for coroot (HTTP mode for browser-based access with Host headers)
+backend coroot_backend
+    mode http
+    server vault {{ monitoring_ip }}:8080 check
+
+# Backend for coroot (TCP mode for direct agent connections)
+backend coroot_tcp_backend
+    mode tcp
+    server vault {{ monitoring_ip }}:8080 check
+
+# Backend for rancher
+backend rancher_backend
+    mode http
+    server rancher {{ monitoring_ip }}:443 ssl verify none check
+
+# Backend for gogs
+backend gogs_backend
+    mode http
+    server gogs {{gitops_ip}}:443 ssl verify none check
+
+# Backend for registry
+backend registry_backend
+    mode http
+    server registry {{gitops_ip}}:8443 ssl verify none check

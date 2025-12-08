@@ -1,0 +1,464 @@
+---
+
+- name: Check if Rancher is installed  
+  become: true
+  shell: 'docker container ls -a --format {% raw %} "{{.Names}}" {% endraw %} --filter "name=rancher"'
+  register: is_rancher_installed
+  when: inventory_hostname == 'rancher-server'
+
+- name: Set a global fact on the control node
+  set_fact:
+    rancher_server_installed: "{{ is_rancher_installed.stdout }}"
+  when: inventory_hostname == 'rancher-server'
+
+- name: Access the global fact on all hosts
+  debug:
+    msg: "rancher server already installed, next steps will be skipped"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] == 'rancher'"
+
+- name: Load necessary kernel modules
+  ansible.builtin.command:
+    cmd: modprobe "{{ item }}"
+  loop:
+    - ip_tables
+    - ip_conntrack
+    - iptable_filter
+    - ipt_state
+  become: yes
+  when: 
+    - "inventory_hostname == 'rancher-server'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Run Rancher server container with standalone mode
+  command:
+    cmd: >
+      docker run -d --privileged --restart=unless-stopped
+      -p {{ rancher_port }}:80 -p {{ rancher_ssl_port }}:443
+      -e CATTLE_SYSTEM_DEFAULT_REGISTRY={{registry_url}}
+      -e CATTLE_BOOTSTRAP_PASSWORD={{ rancher_admin_password }}
+      -v /data/rancher:/var/lib/rancher
+      --name rancher {{registry_url}}/rancher/rancher:{{ rancher_version }}
+  become: yes
+  retries: 100
+  delay: 1
+  when: 
+    - "inventory_hostname == 'rancher-server'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Wait for 1 minute before proceeding
+  ansible.builtin.pause:
+    seconds: 100
+  when: 
+    - "inventory_hostname == 'rancher-server'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+# ### LOCALHOST ###
+
+
+- name: Wait for 1 minute before proceeding
+  ansible.builtin.pause:
+    seconds: 100
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: Log in to Rancher and get API token
+  uri:
+    url: "https://{{ rancher_server_ip }}/v3-public/localProviders/local?action=login"
+    method: POST
+    body:
+      username: "admin"
+      password: "{{ rancher_admin_password }}"
+    body_format: json
+    headers:
+      Content-Type: application/json
+    return_content: yes
+    validate_certs: false
+    status_code: [200, 201]  
+  register: rancher_login_response
+  retries: 15
+  delay: 15
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+
+
+- name: Extract Rancher token
+  set_fact:
+    rancher_token: "{{ rancher_login_response.json.token }}"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: Configure the server URL
+  uri:
+    url: "https://{{ rancher_server_ip }}/v3/settings/server-url"
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ rancher_token }}"
+      Content-Type: "application/json"
+    body: |
+      {
+        "name": "server-url",
+        "value": "https://{{ rancher_server_ip }}"
+      }
+    body_format: json
+    validate_certs: false
+    return_content: true
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+#ADDING RKE APPS CLUSTER
+
+- name: Fetch the base64 encoded kubeconfig
+  command: "base64 /home/devops/.kube/config"
+  register: kubeconfig_base64
+  changed_when: false
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Wait for 10 seconds
+  ansible.builtin.pause:
+    seconds: 10
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Import the cluster into Rancher
+  uri:
+    url: "https://{{ rancher_server_ip }}/v3/clusters"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ rancher_token }}"
+      Content-Type: application/json
+    body:
+      name: "rke2-apps"
+      importedConfig:
+        kubeConfig: "{{ kubeconfig_base64.stdout }}"
+    body_format: json
+    status_code: [200, 201]  
+    validate_certs: false
+  register: import_cluster_response
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Wait for 10 seconds
+  ansible.builtin.pause:
+    seconds: 10
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Fetch cluster registration token data
+  uri:
+    url: "https://{{ rancher_server_ip }}/v3/clusters/{{ import_cluster_response.json.id }}/clusterregistrationtokens"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ rancher_token }}"
+    validate_certs: false
+  register: command_response
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: Wait for 10 seconds
+  ansible.builtin.pause:
+    seconds: 10
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Extract insecure command
+  set_fact:
+    insecure_command: "{{ command_response.json['data'][0]['insecureCommand'] }}"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: Generate the rancher-agent-rke-apps.yaml download command
+  set_fact:
+    command: "{{ insecure_command | regex_replace('\\| kubectl apply -f -', '-o /tmp/rancher-agent-rke-apps.yaml') }}"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: Download the Rancher agent YAML file
+  shell: "{{ command }}"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Copy a file to the remote node
+  copy: 
+    src: /tmp/rancher-agent-rke-apps.yaml  
+    dest: /tmp/rancher-agent-rke-apps.yaml
+  when: 
+    - "inventory_hostname == 'registry'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: get the rancher agent tag
+  shell: " grep 'rancher/rancher-agent' /tmp/rancher-agent-rke-apps.yaml | awk -F: '{print $4}'"
+  register: command_output
+  when: 
+    - "inventory_hostname == 'registry'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: print rancher agent tag
+  debug: 
+    msg: "{{command_output.stdout}}"
+  when: 
+    - "inventory_hostname == 'registry'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: tag the image with the proper tag
+  become: true
+  shell: "docker tag {{ registry_url }}/rancher/rancher-agent:v2.10-e130b4bcc6909028d3aaa0d92aeab6b06f88665a-head {{ registry_url }}/rancher/rancher-agent:{{command_output.stdout}}"
+  when: 
+    - "inventory_hostname == 'registry'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: push the image with the proper tag
+  become: true
+  shell: "docker push  {{ registry_url }}/rancher/rancher-agent:{{command_output.stdout}}"
+  when: 
+    - "inventory_hostname == 'registry'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+# - name: Modify the Rancher agent YAML file to use a custom image
+#   shell: "sed -i 's|rancher/rancher-agent:.*|rancher/rancher-agent:v2.10-e130b4bcc6909028d3aaa0d92aeab6b06f88665a-head|' /tmp/rancher-agent-rke-apps.yaml"
+#   vars:
+#     private_registry: "your-private-registry"
+#     agent_image_tag: "v2.10.0"
+#   when: 
+    # - "inventory_hostname == 'localhost'"
+    # - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Apply the rancher agent YAML file to RKE2 apps cluster
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/rancher-agent-rke-apps.yaml
+    context: RKE2-APPS
+  environment:
+    KUBECONFIG: /home/devops/.kube/config
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+#ADDING RKE MIDDLEWARE CLUSTER
+
+- name: Fetch the base64 encoded kubeconfig
+  command: "base64 /home/devops/.kube/config"
+  register: kubeconfig_base64
+  changed_when: false
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+# - name: Wait for 10 seconds
+#   ansible.builtin.pause:
+#     seconds: 10
+#   when: 
+    # - "inventory_hostname == 'localhost'"
+    # - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Import the cluster into Rancher
+  uri:
+    url: "https://{{ rancher_server_ip }}/v3/clusters"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ rancher_token }}"
+      Content-Type: application/json
+    body:
+      name: "rke2-middleware"
+      importedConfig:
+        kubeConfig: "{{ kubeconfig_base64.stdout }}"
+    body_format: json
+    status_code: [200, 201]  
+    validate_certs: false
+  register: import_cluster_response
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Wait for 10 seconds
+  ansible.builtin.pause:
+    seconds: 10
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Fetch cluster registration token data
+  uri:
+    url: "https://{{ rancher_server_ip }}/v3/clusters/{{ import_cluster_response.json.id }}/clusterregistrationtokens"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ rancher_token }}"
+    validate_certs: false
+  register: command_response
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: Wait for 10 seconds
+  ansible.builtin.pause:
+    seconds: 10
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Extract insecure command
+  set_fact:
+    insecure_command: "{{ command_response.json['data'][0]['insecureCommand'] }}"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: Generate the rancher-agent-rke-middleware.yaml download command
+  set_fact:
+    command: "{{ insecure_command | regex_replace('\\| kubectl apply -f -', '-o /tmp/rancher-agent-rke-middleware.yaml') }}"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: Download the Rancher agent YAML file
+  shell: "{{ command }}"
+  when: 
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+# - name: Modify the Rancher agent YAML file to use a custom image
+#   shell: "sed -i 's|rancher/rancher-agent:.*|rancher/rancher-agent:v2.10-e130b4bcc6909028d3aaa0d92aeab6b06f88665a-head|' /tmp/rancher-agent-rke-middleware.yaml"
+#   vars:
+#     private_registry: "your-private-registry"
+#     agent_image_tag: "v2.10.0"
+#   when: 
+    # - "inventory_hostname == 'localhost'"
+    # - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Apply the rancher agent YAML file to middleware apps cluster
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/rancher-agent-rke-middleware.yaml
+    context: RKE2-MIDDLEWARE
+  environment:
+    KUBECONFIG: /home/devops/.kube/config
+  when:
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+#ADDING RKE DMZ CLUSTER
+
+- name: Fetch the base64 encoded kubeconfig
+  command: "base64 /home/devops/.kube/config"
+  register: kubeconfig_base64
+  changed_when: false
+  when:
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Import the cluster into Rancher
+  uri:
+    url: "https://{{ rancher_server_ip }}/v3/clusters"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ rancher_token }}"
+      Content-Type: application/json
+    body:
+      name: "rke2-dmz"
+      importedConfig:
+        kubeConfig: "{{ kubeconfig_base64.stdout }}"
+    body_format: json
+    status_code: [200, 201]
+    validate_certs: false
+  register: import_cluster_response
+  when:
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Wait for 10 seconds
+  ansible.builtin.pause:
+    seconds: 10
+  when:
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Fetch cluster registration token data
+  uri:
+    url: "https://{{ rancher_server_ip }}/v3/clusters/{{ import_cluster_response.json.id }}/clusterregistrationtokens"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ rancher_token }}"
+    validate_certs: false
+  register: command_response
+  when:
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: Wait for 10 seconds
+  ansible.builtin.pause:
+    seconds: 10
+  when:
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Extract insecure command
+  set_fact:
+    insecure_command: "{{ command_response.json['data'][0]['insecureCommand'] }}"
+  when:
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: Generate the rancher-agent-rke-dmz.yaml download command
+  set_fact:
+    command: "{{ insecure_command | regex_replace('\\| kubectl apply -f -', '-o /tmp/rancher-agent-rke-dmz.yaml') }}"
+  when:
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+- name: Download the Rancher agent YAML file
+  shell: "{{ command }}"
+  when:
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"
+
+
+- name: Apply the rancher agent YAML file to RKE2 DMZ cluster
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/rancher-agent-rke-dmz.yaml
+    context: RKE2-DMZ
+  environment:
+    KUBECONFIG: /home/devops/.kube/config
+  when:
+    - "inventory_hostname == 'localhost'"
+    - "hostvars['rancher-server']['rancher_server_installed'] != 'rancher'"

@@ -1,0 +1,159 @@
+@font-face {
+  font-family: "gisha normal";
+  src: url("./fonts/Gisha/Gisha.ttf");
+}
+
+@font-face {
+  font-family: "gisha bold";
+  src: url("./fonts/Gisha/gishabd.ttf");
+}
+
+:root {
+  --LDC-Pricipal: 84, 115, 129;
+  --LDC-Blue: #008bc6;
+  --LDC-Blue-Dark: #0582b7;
+  --LDC-Blue-RGB: 0, 139, 198;
+  --LDC-Green: #6dae20;
+  --LDC-Orange: #f2a053;
+  --LDC-Noir: #24414f;
+}
+
+.main{
+    height: 800px;
+}
+
+.content{
+    height: 100%
+}
+
+h3{
+    font-weight: 700;
+    color: var(--LDC-Noir);
+}
+h2{
+    color: var(--LDC-Green);
+
+}
+
+li span{
+    color: var(--LDC-Blue);
+    font-size: 21px;
+    font-weight: 900;
+
+}
+li, p{
+    font-size : 20px;
+    margin: 10px 0;
+}
+
+p {
+    line-height: 30px;
+
+}
+
+ul li{
+    margin-left: 30px;
+    line-height: normal;
+}
+ul{
+    list-style: circle;
+}
+.fs-20{
+    font-size : 20px;
+}
+.nav-pills .nav-link.active{
+    background-color: var(--LDC-Blue);
+
+}
+.nav-link{
+    color: var(--LDC-Blue);
+}
+span.nb-text{
+    color: grey;
+    font-style: italic;
+    font-size: 18px;
+
+}
+
+.note-box {
+    border: 1px solid #ffc107; 
+    background-color: #fff3cd;
+    padding: 15px;
+    margin: 20px 0;
+    border-radius: 4px;
+}
+
+strong.note {
+    color: #a76e39; 
+}
+
+
+
+.command-container {
+    position: relative;
+    width: 50%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.command-block {
+    color: #f8f8f2; 
+    margin: 15px 0;
+    overflow-x: auto;
+    border-radius: 5px;
+    font-family: "Consolas", "Monaco", monospace;
+    font-size: 0.9em;
+    background-color: light-dark(#32302c, #d4d4d4);;
+    display: flex;
+    box-sizing: border-box;
+    align-items: center;
+    line-height: 22px;
+    overflow-x: auto;
+    padding: 10px 16px 12px 12px;
+    width: 100%;
+}
+
+.copy-button {
+    position: absolute;
+    top: 20px;
+    right: 10px;
+    background: #555;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.copy-button:hover {
+    background-color: #777;
+}
+
+.command-block code {
+    background: none; 
+    color: inherit;
+    text-wrap: wrap;
+}
+
+
+code {
+    background-color: #eee;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: "Consolas", "Monaco", monospace;
+    font-size: 0.95em;
+    color: #4d4d4d; 
+}
+
+
+.link-suggestion a {
+    color: #28a745; 
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.link-suggestion a:hover {
+    text-decoration: underline;
+}

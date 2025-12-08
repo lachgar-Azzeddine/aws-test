@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  LB_LAN:
+    image: "{{registry_url}}/haproxy:3.1"
+    container_name: lb_lan
+    restart: always
+    ports:
+      - "80:80"     
+      - "443:443"   
+      - "32100:32100"   
+      - "31400-31402:31400-31402"
+    volumes:
+      - "{{ haproxy_config_path | default('./haproxy.cfg') }}:/usr/local/etc/haproxy/haproxy.cfg:ro"
+      - "{{ ssl_cert_path | default('./certs') }}:/etc/haproxy/certs:ro"  # SSL certificates
+    networks:
+      - haproxy_network
+
+networks:
+  haproxy_network:
+    driver: bridge
+

@@ -1,0 +1,231 @@
+---
+- name: Ensure the devops user exists
+  become: true
+  ansible.builtin.user:
+    name: "{{ devops_username }}"
+    home: "{{ devops_home }}"
+    state: present
+    create_home: yes
+  when: "'localhost' not in inventory_hostname"
+
+- name: Add devops user to sudoers
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/devops
+    content: "{{ devops_username }} ALL=(ALL) NOPASSWD:ALL"
+    owner: root
+    group: root
+    mode: '0440'
+  when: "'localhost' not in inventory_hostname"
+
+- name: Ensure home directory ownership is correct
+  become: true
+  ansible.builtin.file:
+    path: "{{ devops_home }}"
+    owner: "{{ devops_username }}"
+    group: "{{ devops_username }}"
+    state: directory
+    mode: '0755'
+  when: "'localhost' not in inventory_hostname"
+
+- name: Allow user devops to run Docker commands
+  user:
+    name: devops
+    groups: docker
+    append: true
+  become: true
+  when: "'localhost' not in inventory_hostname and 'rke' not in inventory_hostname"
+
+# - name: Check if the private key exists locally
+#   ansible.builtin.stat:
+#     path: "{{ local_private_key }}"
+#   register: private_key
+#   when: inventory_hostname == 'localhost'  # Only check on localhost
+
+# - name: Generate SSH key pair if missing
+#   ansible.builtin.command: "ssh-keygen -t rsa -b 4096 -f {{ local_private_key }} -N ''"
+#   when: inventory_hostname == 'localhost' and not private_key.stat.exists  # Only run on localhost if the key doesn't exist
+
+- name: Ensure the remote user's .ssh directory exists
+  ansible.builtin.file:
+    path: "{{ devops_home }}/.ssh"
+    state: directory
+    mode: '0700'
+  become: yes
+  become_user: "{{ devops_username }}"
+  when: inventory_hostname != 'localhost'  # Only run on remote VMs, not localhost
+
+- name: Copy private key to default location
+  copy:
+    src: "{{ private_key_file_path }}"  # The path to the private key in the variable
+    dest: "{{ ansible_env.HOME }}/.ssh/id_rsa"
+    mode: '0600'
+
+- name: Copy public key to default location
+  copy:
+    src: "{{ public_key_file_path }}"  # The path to the public key in the variable
+    dest: "{{ ansible_env.HOME }}/.ssh/id_rsa.pub"
+    mode: '0644'  
+
+- name: Copy the public key to the remote machine
+  ansible.builtin.authorized_key:
+    user: "{{ devops_username }}"
+    state: present
+    key: "{{ lookup('file', local_public_key) }}"
+  become: yes
+  become_user: "{{ devops_username }}"
+  when: inventory_hostname != 'localhost'  # Only run on remote VMs, not localhost
+
+- name: Copy the generated hosts file to remote servers
+  copy:
+    src: ./files/hosts 
+    dest: /etc/hosts       
+    owner: root
+    group: root
+    mode: '0644'
+  become: true     
+  when: inventory_hostname != 'localhost'        
+
+- name: Change root password
+  become: true
+  user:
+    name: root
+    password: "{{ root_password }}"
+  when: inventory_hostname != 'localhost' 
+
+- name: Disable root SSH login and SSH password authentication
+  become: true
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    state: present
+    regexp: '^#?(PermitRootLogin|PasswordAuthentication)'
+    line: "{{ item }}"
+    backrefs: yes
+  loop:
+    - "PermitRootLogin no"
+    - "PasswordAuthentication no"
+  when: inventory_hostname != 'localhost' 
+
+- name: Disable root SSH login and SSH password authentication in 50-cloudinit file
+  become: true
+  copy:
+    dest: /etc/ssh/sshd_config.d/50-cloud-init.conf
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+    force: yes
+  when: inventory_hostname != 'localhost' 
+  
+- name: Restart the SSHD service
+  become: true
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  when: inventory_hostname != 'localhost'
+
+
+- name: Set proxy variables in /etc/environment
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    line: '{{ item }}'
+    create: yes
+    state: present
+  with_items:
+    - 'http_proxy="{{ http_proxy }}"'
+    - 'https_proxy="{{ http_proxy }}"'
+    - 'no_proxy="{{ no_proxy }}"'
+  when: inventory_hostname != 'localhost' and use_proxy == 1
+  become: true
+
+- name: Set proxy variables in /etc/profile.d/proxy.sh for interactive shells
+  ansible.builtin.copy:
+    dest: /etc/profile.d/proxy.sh
+    content: |
+      export http_proxy="{{ http_proxy }}"
+      export https_proxy="{{ http_proxy }}"
+      export no_proxy="{{ no_proxy }}"
+    owner: root
+    group: root
+    mode: '0644'
+  when: inventory_hostname != 'localhost' and use_proxy == 1
+  become: true
+- name: set no proxy variables for localhost
+  shell: |
+    export no_proxy="{{ no_proxy }}"
+  when: inventory_hostname == 'localhost' and use_proxy == 1
+- name: Reload environment variables
+  ansible.builtin.shell: source /etc/profile.d/proxy.sh
+  when: inventory_hostname != 'localhost' and use_proxy == 1
+  become: true
+
+- name: Delete kubeconfig file if it already existed
+  file:
+    path: /home/devops/.kube/config
+    state: absent
+  when: inventory_hostname == 'localhost' 
+
+# ---------------- NTP Configuration Tasks ----------------
+
+# - name: Install chrony NTP client
+#   become: true
+#   ansible.builtin.package:
+#     name: chrony
+#     state: present
+#   when: inventory_hostname != 'localhost'
+#
+# - name: Configure chrony to use NTP servers
+#   become: true
+#   ansible.builtin.template:
+#     src: chrony.conf.j2
+#     dest: /etc/chrony/chrony.conf
+#     owner: root
+#     group: root
+#     mode: '0644'
+#   notify: restart chrony
+#   when: inventory_hostname != 'localhost'
+#
+# - name: Ensure chrony service is started and enabled
+#   become: true
+#   ansible.builtin.service:
+#     name: chronyd
+#     state: started
+#     enabled: yes
+#   when: inventory_hostname != 'localhost'
+#
+# - name: Wait for time synchronization to settle
+#   ansible.builtin.pause:
+#     seconds: 10
+#   when: inventory_hostname != 'localhost'
+#
+# - name: Check if time is synchronized with NTP server
+#   ansible.builtin.command: chronyc sources
+#   register: ntp_sync_status
+#   changed_when: false
+#   failed_when: false
+#   when: inventory_hostname != 'localhost'
+#
+# - name: Set fact if NTP sync is not successful
+#   ansible.builtin.set_fact:
+#     ntp_sync_failed: true
+#   when: 
+#     - inventory_hostname != 'localhost'
+#     - "'^*' not in ntp_sync_status.stdout"
+#
+# - name: Get current time from Ansible controller if NTP sync failed
+#   ansible.builtin.command: date -u +'%Y-%m-%d %H:%M:%S'
+#   register: controller_time
+#   delegate_to: localhost
+#   run_once: true
+#   when: ntp_sync_failed is defined and ntp_sync_failed
+#
+# - name: Set system time from Ansible controller as a fallback
+#   become: true
+#   ansible.builtin.command: date -s "{{ controller_time.stdout }}"
+#   when: ntp_sync_failed is defined and ntp_sync_failed
+#
+# - name: Restart chrony service
+#   become: true
+#   ansible.builtin.service:
+#     name: chronyd
+#     state: restarted
+#   when: inventory_hostname != 'localhost'

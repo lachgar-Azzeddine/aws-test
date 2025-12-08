@@ -1,0 +1,254 @@
+global
+    log stdout format raw local0
+    maxconn 2000
+
+defaults
+    log     global
+    option  tcplog
+    option  dontlognull
+    timeout connect 5000ms
+    timeout client  50000ms
+    timeout server  50000ms
+
+
+#DATABASES ESERVICE
+{% if install_eservice == True %}
+
+# Frontend and backend smtp
+frontend smtp
+    bind *:{{smtp_server_port}} 
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend smtp
+
+backend smtp
+    mode tcp
+    server smtp_server {{smtp_server_host}}:{{smtp_server_port}}
+
+
+# Frontend and backend sig
+frontend sig
+    bind *:{{sig_db_port}}
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend sig
+
+backend sig
+    mode tcp
+    server sig_db {{sig_db_host}}:{{sig_db_port}}
+
+frontend sms
+    bind *:{{sms_port}}
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend sms
+
+backend sms
+    mode tcp
+    server sms-server {{sms_host}}:{{sms_port}}
+
+
+frontend payment
+    bind *:{{payment_port}}
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend payment
+
+backend payment
+    mode tcp
+    server payment-server {{payment_host}}:{{payment_port}}
+
+
+
+{% endif %}
+# DATABASES GCO
+
+{% if install_gco == True %}
+# Frontend and Backend Gco db
+frontend Gco
+    bind *:{{gco_db_port}}
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend Gco
+
+backend Gco
+    mode tcp
+    server gco_db {{gco_db_host}}:{{gco_db_port}}
+
+# Frontend and Backend Gco sig DB
+frontend gco-sig
+    bind *:{{gco_sig_port}}
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend gco-sig
+
+backend gco-sig
+    mode tcp
+    server gco_sig_db {{gco_sig_host}}:{{gco_sig_port}}
+
+frontend arcgis
+    bind *:{{arcgis_port}} ssl crt /etc/haproxy/certs/
+    mode http
+    log global
+    option httplog
+
+    default_backend arcgis
+
+backend arcgis
+    mode http
+    server arcgis-server {{arcgis_host}}:{{arcgis_port}} check
+
+frontend fe_wss
+    bind *:{{ websocketGCO_port }} ssl crt /etc/haproxy/certs/
+    mode http
+    option httplog
+    use_backend be_ws
+
+backend be_ws
+    mode http
+    option http-server-close
+    server ws1 {{ websocketGCO_ip }}:{{ websocketGCO_port }} check
+
+# Frontend and backend for gco LDAP 
+frontend gco-LDAP
+    bind *:{{gco_ldap_port}}
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend gco-LDAP
+
+backend gco-LDAP
+    mode tcp
+    server gco-LDAP {{gco_ldap_host}}:{{gco_ldap_port}}
+
+frontend alfresco
+    bind *:7080 ssl crt /etc/haproxy/certs/
+    mode http
+    log global
+    option httplog
+
+    default_backend alfresco
+
+backend alfresco
+    mode http
+    server alfresco-server {{host_alfresco}}:{{port_alfresco}} check
+
+frontend gcbo
+    bind *:5080 ssl crt /etc/haproxy/certs/
+    mode http
+    log global
+    option httplog
+
+    default_backend gcbo
+
+backend gcbo
+    mode http
+    server gcbo-server {{host_gcbo}}:{{port_gcbo}} check
+
+frontend gmao
+    bind *:5443 ssl crt /etc/haproxy/certs/
+    mode http
+    log global
+    option httplog
+
+    default_backend gmao
+
+backend gmao
+    mode http
+    server gmao-server {{host_gmao}}:{{port_gmao}} check
+
+{% endif %}
+
+
+# Frontend and backend hdfs-50070
+frontend hdfs-50070
+    bind *:50070
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend hdfs-50070
+
+backend hdfs-50070
+    mode tcp
+    server hdfs-50070-server {{hdfs_host}}:50070
+
+# Frontend and backend hdfs-50075
+frontend hdfs-50075
+    bind *:50075
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend hdfs-50075
+
+backend hdfs-50075
+    mode tcp
+    server hdfs-50075-server {{hdfs_host}}:50075
+
+# Frontend and backend Informix
+frontend Informix
+    bind *:{{Informix_db_port}}
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend Informix
+
+backend Informix
+    mode tcp
+    server Informix_db {{Informix_db_host}}:{{Informix_db_port}}
+
+# Frontend and backend postgres
+frontend postgres
+    bind *:{{postgres_db_port}}
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend postgres
+
+backend postgres
+    mode tcp
+    server postgres_db {{postgres_db_host}}:{{postgres_db_port}}
+
+# Frontend and backend for internal LDAP 
+frontend internal-LDAP
+    bind *:{{internal_ldap_port}}
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend internal-LDAP
+
+backend internal-LDAP
+    mode tcp
+    server internal-LDAP {{internal_ldap_host}}:{{internal_ldap_port}}
+
+
+# Frontend and backend for external LDAP 
+frontend external-LDAP
+    bind *:{{external_ldap_port}}
+    mode tcp
+    log global
+    option tcplog
+
+    default_backend external-LDAP
+
+backend external-LDAP
+    mode tcp
+    server external-LDAP {{external_ldap_host}}:{{external_ldap_port}}
+
