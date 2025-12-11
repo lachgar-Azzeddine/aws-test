@@ -1,5 +1,0 @@
----
-# tasks file for install bastion
-- name: just print a message to stdout
-  debug:
-    msg: "process install install bastion!"

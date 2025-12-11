@@ -47,19 +47,32 @@ executor = ThreadPoolExecutor(120)
 # On RKE2: ArgoCD, Longhorn
 # ====================================================================
 
-# MINIMAL ROLE LIST FOR TESTING (6 roles total)
+# MINIMAL ROLE LIST FOR TESTING (7 roles total)
+# ====================================================================
+# DEPLOYMENT ORDER:
+#   1. prepare-vms         → All VMs (SSH, Docker, packages)
+#   2. install-vault       → vault VM (secrets - MUST BE BEFORE gogs!)
+#   3. install-docker-registry → gitops VM (Docker Registry)
+#   4. install-gogs        → gitops VM (Git server - needs Vault!)
+#   5. install-rke2-apps   → RKEAPPS VMs (Kubernetes cluster)
+#   6. install-longhorn    → RKEAPPS VMs (K8s storage)
+#   7. install-argocd      → RKEAPPS VMs (K8s GitOps)
+# ====================================================================
 noinf_roles = [
     # Step 1: Prepare all VMs (SSH keys, packages, Docker)
     "prepare-vms",
 
-    # Step 2: Infrastructure VM (Docker Registry + Gogs)
+    # Step 2: Vault (MUST be before Gogs - Gogs reads secrets from Vault)
+    "install-vault",
+
+    # Step 3: Infrastructure VM (Docker Registry + Gogs)
     "install-docker-registry",
     "install-gogs",
 
-    # Step 3: RKE2 Cluster (1 master + 1 worker)
+    # Step 4: RKE2 Cluster (3 master/worker nodes)
     "install-rke2-apps",
 
-    # Step 4: Kubernetes components (deployed on RKE2)
+    # Step 5: Kubernetes components (deployed on RKE2)
     "install-longhorn",
     "install-argocd",
 ]

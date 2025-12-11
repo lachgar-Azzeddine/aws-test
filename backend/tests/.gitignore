@@ -1,8 +1,0 @@
-dataregistry
-vault/file
-vault/logs
-.vault-credentials
-postgres
-gogs-data/gogs.db
-test_runner.db
-test_sqlhosts

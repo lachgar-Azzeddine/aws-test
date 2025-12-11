@@ -1,0 +1,32 @@
+# =============================================================================
+# TERRAFORM VARIABLES - COPY TO terraform.tfvars AND FILL IN YOUR VALUES
+# =============================================================================
+
+# AWS Configuration
+aws_region = "eu-west-1"
+
+# Your AWS SSH Key Pair name (must exist in AWS)
+key_name = "your-key-pair-name"
+
+# VPC and Subnet (get from AWS Console or use default VPC)
+vpc_id    = "vpc-xxxxxxxxx"
+subnet_id = "subnet-xxxxxxxxx"
+
+# Environment name (prefix for all resources)
+environment = "harmo-test"
+
+# Instance type (t3.medium = 2 vCPU, 4 GB RAM)
+instance_type = "t3.medium"
+
+# Disk sizes
+root_volume_size = 50   # GB
+data_volume_size = 50  # GB (for RKE nodes - Longhorn storage)
+
+# DevOps user password (used by prepare-vms role)
+devops_password = "devops"
+
+# SSH public key content (paste your public key here)
+ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... your-key-here"
+
+# Base domain for services
+base_domain = "example.com"

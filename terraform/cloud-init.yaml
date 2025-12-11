@@ -1,0 +1,182 @@
+#cloud-config
+# =============================================================================
+# CLOUD-INIT CONFIGURATION FOR HARMONISATION VMs
+# =============================================================================
+# This prepares the VM for the prepare-vms Ansible role:
+#   - Creates devops user with password authentication
+#   - Installs Docker and prerequisites
+#   - Configures SSH for password auth
+#   - Mounts data disk (for RKE nodes)
+# =============================================================================
+
+hostname: ${hostname}
+fqdn: ${hostname}.${base_domain}
+manage_etc_hosts: true
+
+# Create devops user with password
+users:
+  - default
+  - name: devops
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    lock_passwd: false
+    # Password: devops (generated with: mkpasswd -m sha-512)
+    passwd: $6$rounds=4096$randomsalt$YourHashedPasswordHere
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+# Set password for devops user (plain text, will be hashed)
+chpasswd:
+  expire: false
+  users:
+    - name: devops
+      password: ${devops_password}
+      type: text
+
+# Enable password authentication for SSH
+ssh_pwauth: true
+
+# Package installation
+package_update: true
+package_upgrade: true
+
+packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - software-properties-common
+  - python3
+  - python3-pip
+  - git
+  - wget
+  - unzip
+  - jq
+  - net-tools
+  - htop
+  - iotop
+  - nfs-common
+  - open-iscsi
+  - util-linux
+
+# Write files
+write_files:
+  # SSH config to allow password auth
+  - path: /etc/ssh/sshd_config.d/99-harmo.conf
+    content: |
+      PasswordAuthentication yes
+      PermitRootLogin no
+      PubkeyAuthentication yes
+    permissions: '0644'
+
+  # Docker daemon config
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "exec-opts": ["native.cgroupdriver=systemd"],
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "100m"
+        },
+        "storage-driver": "overlay2"
+      }
+    permissions: '0644'
+
+  # Sysctl settings for Kubernetes
+  - path: /etc/sysctl.d/99-kubernetes.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+      net.ipv4.conf.all.forwarding = 1
+      vm.swappiness = 0
+    permissions: '0644'
+
+  # Modules for Kubernetes
+  - path: /etc/modules-load.d/kubernetes.conf
+    content: |
+      overlay
+      br_netfilter
+    permissions: '0644'
+
+# Run commands
+runcmd:
+  # Load kernel modules
+  - modprobe overlay
+  - modprobe br_netfilter
+  - sysctl --system
+
+  # Install Docker
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+  # Start and enable Docker
+  - systemctl enable docker
+  - systemctl start docker
+
+  # Add devops to docker group (redundant but ensures it works)
+  - usermod -aG docker devops
+
+  # Create devops home directories
+  - mkdir -p /home/devops/.ssh
+  - mkdir -p /home/devops/.kube
+  - mkdir -p /home/devops/rke2-artifacts
+  - chown -R devops:devops /home/devops
+
+  # Copy SSH key to devops authorized_keys
+  - |
+    cat > /home/devops/.ssh/authorized_keys << 'SSHKEY'
+    ${ssh_public_key}
+    SSHKEY
+  - chmod 700 /home/devops/.ssh
+  - chmod 600 /home/devops/.ssh/authorized_keys
+  - chown -R devops:devops /home/devops/.ssh
+
+  # Disable swap
+  - swapoff -a
+  - sed -i '/swap/d' /etc/fstab
+
+  # Enable and start iscsid (for Longhorn)
+  - systemctl enable iscsid
+  - systemctl start iscsid
+
+  # Restart SSH to apply config
+  - systemctl restart sshd
+
+%{ if is_rke_node }
+  # Mount data disk for RKE nodes (Longhorn storage)
+  - |
+    if [ -b /dev/nvme1n1 ]; then
+      DATA_DISK="/dev/nvme1n1"
+    elif [ -b /dev/xvdb ]; then
+      DATA_DISK="/dev/xvdb"
+    elif [ -b /dev/sdb ]; then
+      DATA_DISK="/dev/sdb"
+    fi
+    if [ -n "$DATA_DISK" ]; then
+      mkfs.ext4 -F $DATA_DISK
+      mkdir -p /data
+      echo "$DATA_DISK /data ext4 defaults,nofail 0 2" >> /etc/fstab
+      mount /data
+      mkdir -p /data/longhorn
+      chown -R devops:devops /data
+    fi
+%{ endif }
+
+  # Signal that cloud-init is complete
+  - touch /var/lib/cloud/instance/boot-finished
+
+# Final message
+final_message: |
+  ===========================================
+  Harmonisation VM ${hostname} is ready!
+
+  User: devops
+  Password: ${devops_password}
+  SSH Key: Configured
+  Docker: Installed
+  ===========================================

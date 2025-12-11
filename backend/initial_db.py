@@ -5,24 +5,17 @@ from sqlalchemy.orm import sessionmaker
 from models import (
     Configuration,
     Monitoring,
-    # Product removed - no longer using product-based system
     Security,
-    User,
+    VirtualMachine,
     Zone,
     create_tables,
 )
-from cryptography.fernet import Fernet
-
-# Encryption key (same as in repository.py)
-ENCRYPTION_KEY = "uOdT_oGBMvG8N7_rpBg1UVlwVK7BD6igm0l4IqJD8cA="
-fernet = Fernet(ENCRYPTION_KEY)
-
-def encrypt_password(plain_password: str):
-    """Encrypt password using Fernet"""
-    encoded_pwd = plain_password.encode()
-    encrypted_pwd_bytes = fernet.encrypt(encoded_pwd)
-    return encrypted_pwd_bytes.decode()
 import logging
+
+# ==========================================================================
+# DATABASE PATH - Adjust as needed
+# ==========================================================================
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sql_app.db")
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -30,12 +23,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def initialize_database():
-    # create database and itialize tables
-    db_uri = os.getenv("DATABASE_URL", "sqlite:///./sql_app.db")
+def initialize_database(db_path=None):
+    """
+    Initialize database with default configuration and VMs.
+    MES-OMNI STYLE - Creates zones, security config, and VMs directly.
+    """
+    db_uri = db_path if db_path else DATABASE_URL
+    if not db_uri.startswith("sqlite:///") and not db_uri.startswith("postgresql://"):
+        db_uri = f"sqlite:///{db_uri}"
+
     Engine = create_engine(db_uri)
-    
-    # Check if the 'configurations' table exists
+
+    # Check if database already exists
     inspector = inspect(Engine)
     if not inspector.has_table("configurations"):
         logger.info("Database not initialized, creating tables and initial data")
@@ -43,7 +42,9 @@ def initialize_database():
         session = Session()
         create_tables(Engine)
 
-        # Product initialization removed - no longer using product-based system
+        # ==========================================================================
+        # MONITORING CONFIGURATION
+        # ==========================================================================
         monitoring = Monitoring(
             id=1,
             deploy_embeded_monitoring_stack=True,
@@ -53,6 +54,10 @@ def initialize_database():
             metrics_retnetion_disk_space=100,
         )
         session.add(monitoring)
+
+        # ==========================================================================
+        # SECURITY CONFIGURATION - FILL IN YOUR VALUES
+        # ==========================================================================
         security = Security(
             id=1,
             use_proxy=False,
@@ -60,77 +65,151 @@ def initialize_database():
             proxy_port="",
             proxy_login="",
             proxy_password="",
+            # FILL: Your SSH public key for connecting to VMs
             ssh_pulic_key="",
+            # FILL: Your SSH private key for connecting to VMs
             ssh_private_key="",
+            ssh_private_key_pwd="",
+            # FILL: Your base domain, e.g., "example.com"
             base_domain="",
+            # FILL: Environment prefix, e.g., "test" or "prod" (optional)
             env_prefix="",
+            # FILL: Your PEM certificate for HTTPS (optional)
             pem_certificate="",
         )
         session.add(security)
+
+        # ==========================================================================
+        # MAIN CONFIGURATION
+        # ==========================================================================
         configuration = Configuration(
             id=1,
             number_concurrent_users=100,
             monitoring=monitoring,
             security=security,
         )
-        # products relationship removed
         session.add(configuration)
+
+        # ==========================================================================
+        # ZONE CONFIGURATION - FILL IN YOUR NETWORK DETAILS
+        # ==========================================================================
+        # Zone 1: LAN/Apps zone - main zone for all VMs
         zone1 = Zone(
             id=1,
-            name="apps",
-            sub_network="",
-            network_mask=0,
-            dns="",
-            hypervisor_type="vmware",
-            gateway="",
-            domain="",
-            vlan_name="",
+            name="lan",
+            sub_network="",        # FILL: e.g., "192.168.1.0"
+            network_mask="",       # FILL: e.g., "24"
+            dns="",                # FILL: e.g., "8.8.8.8"
+            hypervisor_type="none",  # No hypervisor - VMs pre-exist
+            gateway="",            # FILL: e.g., "192.168.1.1"
+            domain="",             # FILL: e.g., "local"
+            vlan_name="",          # FILL: e.g., "VLAN_100"
         )
         session.add(zone1)
-        zone2 = Zone(
-            id=2,
-            name="infra",
-            sub_network="",
-            network_mask=0,
-            dns="",
-            hypervisor_type="vmware",
-            gateway="",
-            domain="",
-            vlan_name="",
-        )
-        session.add(zone2)
-        zone3 = Zone(
-            id=3,
-            name="dmz",
-            sub_network="",
-            network_mask=0,
-            dns="",
-            hypervisor_type="vmware",
-            gateway="",
-            domain="",
-            vlan_name="",
-        )
-        session.add(zone3)
+        session.commit()  # Commit zone first so we can reference it
 
-        # ================================================================
-        # CREATE DEFAULT ADMIN USER FOR TESTING
-        # ================================================================
-        # Username: admin
-        # Password: admin123
-        # IMPORTANT: Change this password after first login!
-        # ================================================================
-        default_admin = User(
-            id=1,
-            username="admin",
-            password=encrypt_password("admin123"),
-            is_active=True,
-            role="admin"
+        # ==========================================================================
+        # VIRTUAL MACHINES - FILL IN YOUR 6 VMs
+        # ==========================================================================
+        # REQUIRED GROUPS:
+        #   - "vault"   : HashiCorp Vault (needed by other roles for secrets)
+        #   - "gitops"  : Gogs + Docker Registry
+        #   - "RKEAPPS" : RKE2 Kubernetes cluster nodes
+        # ==========================================================================
+
+        # VM 1: Vault - HashiCorp Vault (MUST BE FIRST - other roles depend on it)
+        vm1 = VirtualMachine(
+            hostname="",           # FILL: e.g., "vault"
+            roles="vault",
+            group="vault",         # REQUIRED: install-vault, install-gogs need this
+            ip="",                 # FILL: e.g., "192.168.1.10"
+            nb_cpu=0,              # FILL: e.g., 4
+            ram=0,                 # FILL: e.g., 8192 (MB)
+            os_disk_size=0,        # FILL: e.g., 50 (GB)
+            data_disk_size=0,      # FILL: e.g., 50 (GB)
+            zone_id=zone1.id,
+            status="created",
         )
-        session.add(default_admin)
-        logger.info("✅ Default admin user created (username: admin, password: admin123)")
-        logger.warning("⚠️  CHANGE DEFAULT PASSWORD AFTER FIRST LOGIN!")
+        session.add(vm1)
+
+        # VM 2: GitOps - Gogs + Docker Registry
+        vm2 = VirtualMachine(
+            hostname="",           # FILL: e.g., "gitops"
+            roles="git,docker-registry",
+            group="gitops",        # REQUIRED: install-gogs, install-docker-registry need this
+            ip="",                 # FILL: e.g., "192.168.1.11"
+            nb_cpu=0,              # FILL: e.g., 4
+            ram=0,                 # FILL: e.g., 8192 (MB)
+            os_disk_size=0,        # FILL: e.g., 50 (GB)
+            data_disk_size=0,      # FILL: e.g., 200 (GB) - for Docker images
+            zone_id=zone1.id,
+            status="created",
+        )
+        session.add(vm2)
+
+        # VM 3: RKE2 Node 1 - Kubernetes master/worker
+        vm3 = VirtualMachine(
+            hostname="",           # FILL: e.g., "rkeapp1"
+            roles="master,worker,cns",
+            group="RKEAPPS",       # REQUIRED: install-rke2-apps needs this
+            ip="",                 # FILL: e.g., "192.168.1.12"
+            nb_cpu=0,              # FILL: e.g., 4
+            ram=0,                 # FILL: e.g., 16384 (MB)
+            os_disk_size=0,        # FILL: e.g., 80 (GB)
+            data_disk_size=0,      # FILL: e.g., 100 (GB) - for Longhorn storage
+            zone_id=zone1.id,
+            status="created",
+        )
+        session.add(vm3)
+
+        # VM 4: RKE2 Node 2 - Kubernetes master/worker
+        vm4 = VirtualMachine(
+            hostname="",           # FILL: e.g., "rkeapp2"
+            roles="master,worker,cns",
+            group="RKEAPPS",
+            ip="",                 # FILL: e.g., "192.168.1.13"
+            nb_cpu=0,
+            ram=0,
+            os_disk_size=0,
+            data_disk_size=0,
+            zone_id=zone1.id,
+            status="created",
+        )
+        session.add(vm4)
+
+        # VM 5: RKE2 Node 3 - Kubernetes master/worker
+        vm5 = VirtualMachine(
+            hostname="",           # FILL: e.g., "rkeapp3"
+            roles="master,worker,cns",
+            group="RKEAPPS",
+            ip="",                 # FILL: e.g., "192.168.1.14"
+            nb_cpu=0,
+            ram=0,
+            os_disk_size=0,
+            data_disk_size=0,
+            zone_id=zone1.id,
+            status="created",
+        )
+        session.add(vm5)
+
+        # VM 6: (OPTIONAL) Middleware - Keycloak, Seald
+        # Uncomment if you need Keycloak/Seald
+        # vm6 = VirtualMachine(
+        #     hostname="",           # FILL: e.g., "middleware"
+        #     roles="keycloak,seald",
+        #     group="RKEMIDDLEWARE",
+        #     ip="",                 # FILL: e.g., "192.168.1.15"
+        #     nb_cpu=0,
+        #     ram=0,
+        #     os_disk_size=0,
+        #     data_disk_size=0,
+        #     zone_id=zone1.id,
+        #     status="created",
+        # )
+        # session.add(vm6)
 
         session.commit()
+        logger.info("Database initialized with zones and VMs")
         session.close()
     else:
         logger.info("Database already initialized")

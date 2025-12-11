@@ -44,14 +44,8 @@ RUN chown devops:devops api.py repository.py initial_db.py models.py install.py 
   chmod +x /usr/local/bin/entrypoint.sh
 
 USER devops
-# Set proxy for http and https for environments requiring a proxy to access internet
-#ENV http_proxy="http://10.97.243.181:808/"
-#ENV https_proxy="http://10.97.243.181:808/"
-#ENV no_proxy="localhost,127.0.0.1,10.0.0.0/8,172.0.0.0/8,*.lydec.wnet,*.srm-cs.wnet"
+
 ENV INFORMIXDIR='/opt/IBM/Informix.4.50.FC11W1'
-ENV CSDK_HOME=${INFORMIXDIR}
-ENV PATH=$INFORMIXDIR/bin:/home/devops/.local/bin:$PATH
-ENV LD_LIBRARY_PATH=$INFORMIXDIR/lib:$INFORMIXDIR/lib/esql:$INFORMIXDIR/lib/cli
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["gunicorn", "--workers", "2", "--timeout", "3600", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8008", "api:app"]

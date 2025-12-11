@@ -89,7 +89,7 @@ from repository import (
     # prepare_install_products removed - no longer using product-based system
     # set_installed_products removed - no longer using product-based system
     # query_products removed - no longer using product-based system
-    scaffold_architecture,
+    scaffold_test_architecture,
     test_database,
     test_flows,
     test_key_pair_match,
@@ -520,8 +520,8 @@ def read_zone_by_id(id: int):
 # Virtual Machines
 @app.get("/virtual-machines", response_model=List[VirtualMachineModel])
 def read_virtual_machines():
-    
-    scaffold_architecture(Session)
+    # Automatically create 3 test VMs if they don't exist
+    scaffold_test_architecture(Session)
     return get_virtual_machines(Session)
 
 

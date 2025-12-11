@@ -10,15 +10,6 @@ RUN chmod +x /usr/local/bin/kubectl
 RUN wget https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc
 RUN chmod +x /usr/local/bin/mc
 
-RUN wget https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip -O /tmp/terraform.zip
-RUN unzip /tmp/terraform.zip -d /usr/local/bin
-RUN rm /tmp/terraform.zip
-RUN chmod +x /usr/local/bin/terraform
-
-RUN wget https://github.com/vmware/govmomi/releases/download/v0.45.0/govc_Linux_x86_64.tar.gz -O /tmp/govc.tar.gz
-RUN tar -xvf /tmp/govc.tar.gz -C /usr/local/bin
-RUN rm /tmp/govc.tar.gz
-RUN chmod +x /usr/local/bin/govc
 
 RUN wget https://github.com/rancher/rke2/releases/download/v1.31.1%2Brke2r2/rke2.linux-amd64 -O /usr/local/bin/rke2
 RUN chmod +x /usr/local/bin/rke2
@@ -41,38 +32,6 @@ RUN cd Python-3.7.10 && \
 
 RUN rm Python-3.7.10.tar.xz  && rm -rf Python-3.7.10
 
-
-
-RUN chmod +x /opt/informix-installer/installclientsdk &&  expect -c ' \
-  set timeout 30; \
-  spawn /opt/informix-installer/installclientsdk; \
-  expect "PRESS <ENTER> TO CONTINUE: "; \
-  send "\r"; \
-  sleep 5; \
-  expect "Press Enter to continue viewing the license agreement, or enter \"1\" to accept the agreement, \"2\" to decline it, \"3\" to print it, or \"99\" to go back to the previous screen.: "; \
-  send "1\r"; \
-  sleep 5; \
-  expect "ENTER AN ABSOLUTE PATH, OR PRESS <ENTER> TO ACCEPT THE DEFAULT\r\t: "; \
-  send "\r"; \
-  sleep 5; \
-  expect "ENTER THE NUMBER FOR YOUR CHOICE, OR PRESS <ENTER> TO ACCEPT THE DEFAULT: "; \
-  send "2\r"; \
-  sleep 5; \
-  expect "Press <ENTER> to install above selected features or choose the corresponding number to change the feature selection: "; \
-  send "\r"; \
-  expect "PRESS <ENTER> TO CONTINUE: "; \
-  send "\r"; \
-  expect "PRESS <ENTER> TO EXIT THE INSTALLER: "; \
-  send "\r"; \
-  '
-RUN rm -rf /opt/informix-installer
-
-RUN touch /opt/IBM/Informix.4.50.FC11W1/etc/sqlhosts
-
-ENV INFORMIXDIR='/opt/IBM/Informix.4.50.FC11W1'
-ENV CSDK_HOME=${INFORMIXDIR}
-ENV PATH=$INFORMIXDIR/bin:$PATH
-ENV LD_LIBRARY_PATH=$INFORMIXDIR/lib:$INFORMIXDIR/lib/esql:$INFORMIXDIR/lib/cli
 
 RUN useradd -ms /bin/bash devops
 RUN usermod -aG docker devops
@@ -97,7 +56,7 @@ WORKDIR /home/devops
 COPY ./requirements.txt .
 USER root
 RUN chown devops:devops requirements.txt
-RUN chown devops:devops /opt/IBM/Informix.4.50.FC11W1/etc/sqlhosts
+
 
 USER devops
 RUN /home/devops/venv/bin/pip install --no-cache-dir -r /home/devops/requirements.txt

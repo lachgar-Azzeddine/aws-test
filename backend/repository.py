@@ -61,10 +61,11 @@ def database_exists(db_path):
 
 
 def get_session():
-    db_uri = os.getenv("DATABASE_URL", "sqlite:///./sql_app.db")
-    Engine = create_engine(db_uri)
-    Session = sessionmaker(autocommit=False, autoflush=False, bind=Engine)
-    return Engine, Session
+    """
+    Get database session. Calls initialize_database() to ensure tables and VMs exist.
+    """
+    from initial_db import initialize_database
+    return initialize_database()
 
 
 def encrypt_password(plain_password: str):
@@ -2860,581 +2861,32 @@ def migrate_vm_configurations(Session):
 
 
 def scaffold_architecture(Session):
+    """
+    SIMPLIFIED VERSION FOR TESTING - MES-OMNI STYLE
+    ================================================
+    VMs are now created directly in initial_db.py on database initialization.
+    This function just ensures VMs exist and returns - no dynamic generation.
+
+    To modify VMs, edit initial_db.py and delete the database to reinitialize.
+    """
     if Session is None:
         print("Session is not initialized")
         return
-    # Product-based logic removed - no longer checking for GCO/EService products
-    # isGCOPresent and isEservicesPresent removed
+
     session = Session()
 
-    # Get configuration and security settings
-    configuration = getConfiguration(Session)
-    security = get_security(Session)
-    if configuration is None:
-        print("Configuration not found")
+    # Check if VMs already exist (created by initial_db.py)
+    vm_count = session.query(VirtualMachine).count()
+    if vm_count > 0:
+        print(f"VMs already exist ({vm_count} VMs found), scaffold complete.")
         session.close()
         return
 
-    prefix = "" if security.env_prefix == "" else security.env_prefix + "-"
-
-    # Get VM configurations based on user count
-    user_count = configuration.number_concurrent_users
-    vm_configs = get_vm_configurations(user_count, Session)
-
-    # Clear existing data
-    session.query(VirtualMachine).delete()
-    session.query(FlowMatrix).delete()
-    session.query(Dns).delete()
-    session.query(Application).delete()
-    session.commit()
+    # If no VMs exist, log a warning - user needs to configure initial_db.py
+    print("WARNING: No VMs found in database!")
+    print("Please configure your VMs in initial_db.py and reinitialize the database.")
+    print("Delete sql_app.db and restart the application to recreate.")
     session.close()
-
-    zone_lan = get_zone_by_id(id=1, Session=Session)
-    zone_infra = get_zone_by_id(id=2, Session=Session)
-    zone_dmz = get_zone_by_id(id=3, Session=Session)
-
-    if zone_lan is not None and zone_infra is not None and zone_dmz is not None:
-        # Zone mapping for VM types (all CONTROL/WORKER/CNS types map to same zones)
-        zone_map = {
-            "RKEAPPS_CONTROL": zone_lan,
-            "RKEAPPS_WORKER": zone_lan,
-            "RKEAPPS_CNS": zone_lan,
-            "RKEMIDDLEWARE_CONTROL": zone_lan,
-            "RKEMIDDLEWARE_WORKER": zone_lan,
-            "RKEMIDDLEWARE_CNS": zone_lan,
-            "LBLAN": zone_lan,
-            "LBINTEGRATION": zone_lan,
-            "GITOPS": zone_infra,
-            "MONITORING": zone_infra,
-            "VAULT": zone_infra,
-            "RKEDMZ": zone_dmz,
-            "LBDMZ": zone_dmz,
-        }
-
-        # VM type to Ansible group name mapping
-        # CONTROL types map to existing groups for backward compatibility
-        group_map = {
-            "RKEAPPS_CONTROL": "RKEAPPS",
-            "RKEAPPS_WORKER": "RKEAPPS_WORKER",
-            "RKEAPPS_CNS": "RKEAPPS_CNS",
-            "RKEMIDDLEWARE_CONTROL": "RKEMIDDLEWARE",
-            "RKEMIDDLEWARE_WORKER": "RKEMIDDLEWARE_WORKER",
-            "RKEMIDDLEWARE_CNS": "RKEMIDDLEWARE_CNS",
-            "RKEDMZ": "RKEDMZ",
-            "LBLAN": "LBLAN",
-            "LBDMZ": "LBDMZ",
-            "LBINTEGRATION": "LBINTEGRATION",
-            "GITOPS": "gitops",
-            "MONITORING": "monitoring",
-            "VAULT": "vault",
-        }
-
-        # VM type to hostname prefix mapping
-        # CONTROL types use "master" prefix, WORKER types use "worker" prefix, CNS types use "cns" prefix
-        hostname_map = {
-            "RKEAPPS_CONTROL": "rkeapp-master",
-            "RKEAPPS_WORKER": "rkeapp-worker",
-            "RKEAPPS_CNS": "rkeapp-cns",
-            "RKEMIDDLEWARE_CONTROL": "rkemiddleware-master",
-            "RKEMIDDLEWARE_WORKER": "rkemiddleware-worker",
-            "RKEMIDDLEWARE_CNS": "rkemiddleware-cns",
-            "RKEDMZ": "rkedmz",
-            "LBLAN": "lblan",
-            "LBDMZ": "lbdmz",
-            "LBINTEGRATION": "lbintegration",
-            "GITOPS": "gitops",
-            "MONITORING": "monitoring",
-            "VAULT": "vault",
-        }
-
-        # Iterate through VM configurations and create VMs dynamically
-        for vm_type, config in vm_configs.items():
-            zone = zone_map.get(vm_type)
-            if zone is None:
-                print(f"Warning: No zone mapping for VM type {vm_type}")
-                continue
-
-            group = group_map.get(vm_type)
-            if group is None:
-                print(f"Warning: No group mapping for VM type {vm_type}")
-                continue
-
-            hostname_prefix = hostname_map.get(vm_type)
-            if hostname_prefix is None:
-                print(f"Warning: No hostname mapping for VM type {vm_type}")
-                continue
-
-            # Create VMs based on node count
-            for i in range(1, config.node_count + 1):
-                # Generate hostname based on VM type with env_prefix
-                # CONTROL types: {prefix}rkeapp-master1, {prefix}rkeapp-master2, {prefix}rkeapp-master3
-                # WORKER types: {prefix}rkeapp-worker1, {prefix}rkeapp-worker2, etc.
-                # RKEDMZ: {prefix}rkedmz1, {prefix}rkedmz2, {prefix}rkedmz3
-                # Others: {prefix}lblan1, {prefix}lblan2, etc.
-                # Example with env_prefix="dev": dev-rkeapp-master1, dev-lblan1, dev-gitops
-
-                # Strip any existing environment prefix from hostname_prefix to prevent duplication
-                # This handles cases where hostname_map values might already include the prefix
-                # Only strip if prefix includes trailing hyphen (real-world scenario)
-                base_hostname = hostname_prefix
-                if (
-                    prefix
-                    and prefix.endswith("-")
-                    and hostname_prefix.startswith(prefix)
-                ):
-                    base_hostname = hostname_prefix[len(prefix) :]
-
-                hostname = f"{prefix}{base_hostname}{i}"
-
-                add_virtual_machine(
-                    hostname=hostname,
-                    roles=config.roles,
-                    group=group,
-                    ip=get_next_available_ip(zone.id, Session),
-                    nb_cpu=config.cpu_per_node,
-                    ram=config.ram_per_node,
-                    os_disk_size=config.os_disk_size,
-                    data_disk_size=config.data_disk_size,
-                    zone_id=zone.id,
-                    Session=Session,
-                )
-
-    # Get VMs for flow matrix creation
-    lb_integration_vms = get_vms_by_group("LBINTEGRATION", Session)
-    lb_lan_vms = get_vms_by_group("LBLAN", Session)
-    smtp_servers = get_smtp_servers(Session)
-    sms_servers = get_sms_providers(Session)
-    publishing_servers = get_publishing_providers(Session)
-    arcgis_server = get_arcgis_servers(Session)
-    databases = get_databases(Session)
-    ldaps = get_ldaps(Session)
-    if security is not None:
-        for lb_integration_vm in lb_integration_vms:
-            for smtp_server in smtp_servers:
-                add_flow_matrix(
-                    lb_integration_vm.ip,
-                    smtp_server.host,
-                    "tcp",
-                    smtp_server.port,
-                    Session,
-                    description="Trafic SMTP vers serveur de messagerie externe via LB INTEGRATION",
-                )
-            for sms_server in sms_servers:
-                host, port = url_parser(sms_server.url)
-                add_flow_matrix(
-                    lb_integration_vm.ip,
-                    host,
-                    "tcp",
-                    port,
-                    Session,
-                    description="Trafic SMS vers fournisseur SMS externe via LB INTEGRATION",
-                )
-            for publishing_server in publishing_servers:
-                host, port = url_parser(publishing_server.url)
-                add_flow_matrix(
-                    lb_integration_vm.ip,
-                    host,
-                    "tcp",
-                    port,
-                    Session,
-                    description="Trafic Publishing vers fournisseur externe via LB INTEGRATION",
-                )
-            for database in databases:
-                add_flow_matrix(
-                    lb_integration_vm.ip,
-                    database.host,
-                    "tcp",
-                    database.port,
-                    Session,
-                    description=f"Connexion à la base de données externe {database.alias} via LB INTEGRATION",
-                )
-            for ldap in ldaps:
-                add_flow_matrix(
-                    lb_integration_vm.ip,
-                    ldap.ldap_url,
-                    "tcp",
-                    ldap.ldap_port,
-                    Session,
-                    description=f"Connexion aux services LDAP/Active Directory {ldap.ldap_type} via LB INTEGRATION",
-                )
-            # TODO add flow from lb_integration_vm to arcgis_server
-
-        # Add flow matrix for LB DMZ to LB LAN (Kafka communication and static content routing)
-        lb_dmz_vms = get_vms_by_group("LBDMZ", Session)
-
-        for lb_dmz_vm in lb_dmz_vms:
-            for lb_lan_vm in lb_lan_vms:
-                # HTTPS for static content routing (port 443)
-                add_flow_matrix(
-                    lb_dmz_vm.ip,
-                    lb_lan_vm.ip,
-                    "tcp",
-                    443,
-                    Session,
-                    description="Routage de contenu statique HTTPS du DMZ vers LAN pour delivery au cluster RKEAPPS",
-                )
-                # Kafka bootstrap traffic (port 32100)
-                add_flow_matrix(
-                    lb_dmz_vm.ip,
-                    lb_lan_vm.ip,
-                    "tcp",
-                    32100,
-                    Session,
-                    description="Trafic Kafka bootstrap du DMZ vers middleware cluster via LB LAN",
-                )
-                # Kafka broker traffic (ports 31400-31402)
-                for port in [31400, 31401, 31402]:
-                    add_flow_matrix(
-                        lb_dmz_vm.ip,
-                        lb_lan_vm.ip,
-                        "tcp",
-                        port,
-                        Session,
-                        description=f"Trafic Kafka broker {port} du DMZ vers middleware cluster via LB LAN",
-                    )
-
-        # Add flow matrix for RKE2-DMZ to LB LAN (Gravitee API proxy to backend services)
-        rke_dmz_vms = get_vms_by_group("RKEDMZ", Session)
-
-        for rke_dmz_vm in rke_dmz_vms:
-            for lb_lan_vm in lb_lan_vms:
-                # HTTPS API proxy traffic (port 443)
-                add_flow_matrix(
-                    rke_dmz_vm.ip,
-                    lb_lan_vm.ip,
-                    "tcp",
-                    443,
-                    Session,
-                    description="Proxy API Gravitee DMZ vers services backend dans clusters RKEAPPS et RKEMIDDLEWARE",
-                )
-
-        # Add flow matrix for RKE2-DMZ to gitops (ArgoCD DMZ -> Gogs)
-        gitops_vms = get_vms_by_group("gitops", Session)
-
-        for rke_dmz_vm in rke_dmz_vms:
-            for gitops_vm in gitops_vms:
-                # GitOps traffic: ArgoCD DMZ to Gogs (port 443)
-                add_flow_matrix(
-                    rke_dmz_vm.ip,
-                    gitops_vm.ip,
-                    "tcp",
-                    443,
-                    Session,
-                    description="Trafic GitOps ArgoCD DMZ vers Gogs pour déploiement Kubernetes",
-                )
-
-        # Add flow matrix for RKE2-DMZ to gitops (Docker Registry)
-        for rke_dmz_vm in rke_dmz_vms:
-            for gitops_vm in gitops_vms:
-                # Docker Registry traffic: RKEDMZ to Gogs/Docker Registry (port 8443)
-                add_flow_matrix(
-                    rke_dmz_vm.ip,
-                    gitops_vm.ip,
-                    "tcp",
-                    8443,
-                    Session,
-                    description="Accès Docker Registry depuis cluster RKE2-DMZ via Gogs/gitops",
-                )
-
-        # Add flow matrix for RKE2-DMZ to vault (Secret retrieval via LB LAN)
-        vault_vms = get_vms_by_group("vault", Session)
-
-        for rke_dmz_vm in rke_dmz_vms:
-            for vault_vm in vault_vms:
-                # Vault traffic: Gravitee DMZ to Vault via LBLAN (port 443)
-                # HAProxy transforms: 443 → 8200
-                add_flow_matrix(
-                    rke_dmz_vm.ip,
-                    vault_vm.ip,
-                    "tcp",
-                    443,
-                    Session,
-                    description="Récupération de secrets Gravitee DMZ depuis HashiCorp Vault via HAProxy (443→8200)",
-                )
-
-        # Add flow matrix for RKE2-DMZ to LBLAN (Coroot agents via LB LAN)
-        lb_lan_vms = get_vms_by_group("LBLAN", Session)
-
-        for rke_dmz_vm in rke_dmz_vms:
-            for lb_lan_vm in lb_lan_vms:
-                # Coroot monitoring: RKE2-DMZ agents to Coroot server via LBLAN (port 8080)
-                add_flow_matrix(
-                    rke_dmz_vm.ip,
-                    lb_lan_vm.ip,
-                    "tcp",
-                    8080,
-                    Session,
-                    description="Agents de monitoring Coroot du cluster RKE2-DMZ vers serveur Coroot via LB LAN",
-                )
-
-        # Add flow matrix for RKE2-DMZ to Rancher Server (Rancher agents via LB LAN)
-        monitoring_vms = get_vms_by_group("monitoring", Session)
-
-        for rke_dmz_vm in rke_dmz_vms:
-            for monitoring_vm in monitoring_vms:
-                # Rancher agent traffic: RKEDMZ nodes to Rancher Server via LBLAN (port 443)
-                add_flow_matrix(
-                    rke_dmz_vm.ip,
-                    monitoring_vm.ip,
-                    "tcp",
-                    443,
-                    Session,
-                    description="Rancher agents sur cluster RKE2-DMZ vers Rancher Server",
-                )
-
-        # Add flow matrix for LBDMZ to LBLAN (Coroot agents via LB LAN)
-        lb_dmz_vms = get_vms_by_group("LBDMZ", Session)
-
-        for lb_dmz_vm in lb_dmz_vms:
-            for lb_lan_vm in lb_lan_vms:
-                # Coroot monitoring: LBDMZ agents to Coroot server via LBLAN (port 8080)
-                add_flow_matrix(
-                    lb_dmz_vm.ip,
-                    lb_lan_vm.ip,
-                    "tcp",
-                    8080,
-                    Session,
-                    description="Agents de monitoring Coroot sur VMs LB DMZ vers serveur Coroot via LB LAN",
-                )
-
-        lb_lan_vms = get_vms_by_group("LBLAN", Session)
-
-        for lb_lan_vm in lb_lan_vms:
-            add_dns(
-                "keycloak",
-                prefix + "keycloak." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "flowable",
-                prefix + "flowable." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "minio-api",
-                prefix + "minio-api." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "minio-ui",
-                prefix + "minio-ui." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "apim",
-                prefix + "apim." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "akhq",
-                prefix + "akhq." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "registry",
-                prefix + "registry." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "gogs", prefix + "gogs." + security.base_domain, lb_lan_vm.ip, Session
-            )
-            add_dns(
-                "argocd-apps",
-                prefix + "argocd-apps." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "argocd-mw",
-                prefix + "argocd-mw." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "argocd-dmz",
-                prefix + "argocd-dmz." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "gravitee-dmz",
-                prefix + "gravitee-dmz." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "vault", prefix + "vault." + security.base_domain, lb_lan_vm.ip, Session
-            )
-            add_dns(
-                "minio-backup",
-                prefix + "minio-backup." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "coroot",
-                prefix + "coroot." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "rancher",
-                prefix + "rancher." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            add_dns(
-                "neuvector",
-                prefix + "neuvector-apps." + security.base_domain,
-                lb_lan_vm.ip,
-                Session,
-            )
-            # Product-specific DNS functions removed (add_dns_gco, add_dns_eservices)
-            # These should be added manually based on deployed applications
-
-    # Create application records for all deployed middleware and applications
-    configuration = session.query(Configuration).get(1)
-    if configuration and security:
-        # Infrastructure applications (always included)
-        # Neuvector LAN (RKEAPPS)
-        add_application(
-            url=f"https://{prefix}neuvector-apps.{security.base_domain}",
-            category="neuvector",
-            name="Neuvector RKE2 APPS",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-
-        # ArgoCD LAN (RKEAPPS)
-        add_application(
-            url=f"https://{prefix}argocd-apps.{security.base_domain}",
-            category="argocd",
-            name="ArgoCD RKE2 LAN",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-
-        # Rancher
-        add_application(
-            url=f"https://{prefix}rancher.{security.base_domain}",
-            category="rancher",
-            name="Rancher Server",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-
-        # Vault
-        add_application(
-            url=f"https://{prefix}vault.{security.base_domain}",
-            category="vault",
-            name="HashiCorp Vault",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-
-        # Gogs
-        add_application(
-            url=f"https://{prefix}gogs.{security.base_domain}",
-            category="gogs",
-            name="Gogs Git Server",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-
-        # Docker Registry
-        add_application(
-            url=f"https://{prefix}registry.{security.base_domain}/v2/_catalog",
-            category="registry",
-            name="Docker Registry",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-
-        # Coroot Monitoring
-        add_application(
-            url=f"https://{prefix}coroot.{security.base_domain}",
-            category="coroot",
-            name="Coroot Monitoring",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-
-        # ArgoCD DMZ
-        add_application(
-            url=f"https://{prefix}argocd-dmz.{security.base_domain}",
-            category="argocd",
-            name="ArgoCD RKE2 DMZ",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-
-        # Gravitee DMZ
-        add_application(
-            url=f"https://{prefix}gravitee-dmz.{security.base_domain}/console/",
-            category="gravitee",
-            name="Gravitee API Gateway DMZ",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-
-        # Keycloak
-        add_application(
-            url=f"https://{prefix}keycloak.{security.base_domain}",
-            category="keycloak",
-            name="Keycloak IAM",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-        # MinIO
-        add_application(
-            url=f"https://{prefix}minio-ui.{security.base_domain}",
-            category="minio",
-            name="MinIO Object Storage",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-        # MinIO Backup
-        add_application(
-            url=f"https://{prefix}minio-backup.{security.base_domain}",
-            category="minio",
-            name="MinIO Object Storage",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-        # Kafka UI (AKHQ)
-        add_application(
-            url=f"https://{prefix}akhq.{security.base_domain}",
-            category="kafka",
-            name="AKHQ Kafka UI",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-        # n8n
-        add_application(
-            url=f"https://{prefix}n8n.{security.base_domain}",
-            category="n8n",
-            name="n8n Workflow Automation",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-        # Gravitee LAN
-        add_application(
-            url=f"https://{prefix}apim.{security.base_domain}/console/",
-            category="gravitee",
-            name="Gravitee API Gateway LAN",
-            configuration_id=configuration.id,
-            Session=Session,
-        )
-
-        # Product-specific applications removed (EService, GCO)
-        # Add your custom applications here as needed
 
 
 
@@ -3624,6 +3076,132 @@ def test_is_Port_Open(source, destination, port, protocol, pkey_str, passphrase=
     except Exception as e:
         print(f"Error: {e}")
         return False
+
+
+def scaffold_test_architecture(Session):
+    """
+    Scaffold minimal 3-VM test architecture for AWS testing.
+    Creates VMs only if they don't already exist.
+
+    VM Configuration (modify IPs here for your AWS VMs):
+    - VM1: infra-vm (10.0.1.11) - Docker Registry + Gogs
+    - VM2: rke-master (10.0.1.12) - RKE2 Master
+    - VM3: rke-worker (10.0.1.13) - RKE2 Worker
+    """
+    if Session is None:
+        logger.error("Session is not initialized")
+        return
+
+    session = Session()
+
+    # Check if VMs already exist
+    if session.query(VirtualMachine).count() != 0:
+        logger.info("VMs already exist, skipping scaffold")
+        session.close()
+        return
+
+    logger.info("Scaffolding minimal 3-VM test architecture...")
+
+    # ============================================================================
+    # MINIMAL TEST CONFIGURATION - MODIFY THESE VALUES FOR YOUR AWS VMS
+    # ============================================================================
+    VM_CONFIG = {
+        "base_domain": "test.local",
+        "env_prefix": "test",
+        "network": {
+            "subnet": "10.0.1.0",
+            "mask": 24,
+            "gateway": "10.0.1.1",
+            "dns": "8.8.8.8,8.8.4.4"
+        },
+        "vms": [
+            {
+                "hostname": "infra-vm",
+                "ip": "10.0.1.11",  # ← CHANGE THIS to your AWS VM2 private IP
+                "group": "gitops",  # Will deploy Docker Registry + Gogs
+                "roles": "docker-registry,gogs",
+                "cpu": 2,
+                "ram": 4096,
+                "disk": 30
+            },
+            {
+                "hostname": "rke-master",
+                "ip": "10.0.1.12",  # ← CHANGE THIS to your AWS VM3 private IP
+                "group": "RKEAPPS",  # Will deploy RKE2 master
+                "roles": "rke2-server",
+                "cpu": 2,
+                "ram": 4096,
+                "disk": 30
+            },
+            {
+                "hostname": "rke-worker",
+                "ip": "10.0.1.13",  # ← CHANGE THIS to your AWS VM4 private IP
+                "group": "RKEAPPS_WORKER",  # Will deploy RKE2 worker
+                "roles": "rke2-agent",
+                "cpu": 2,
+                "ram": 4096,
+                "disk": 30
+            }
+        ]
+    }
+    # ============================================================================
+
+    session.close()
+
+    # Update security settings
+    security = get_security(Session)
+    if security:
+        update_security(
+            use_proxy=security.use_proxy,
+            porxy_host=security.porxy_host,
+            proxy_port=security.proxy_port,
+            proxy_login=security.proxy_login,
+            proxy_password=security.proxy_password,
+            ssh_pulic_key=security.ssh_pulic_key,
+            ssh_private_key=security.ssh_private_key,
+            ssh_private_key_pwd=security.ssh_private_key_pwd,
+            base_domain=VM_CONFIG["base_domain"],
+            env_prefix=VM_CONFIG["env_prefix"],
+            pem_certificate=security.pem_certificate,
+            Session=Session
+        )
+
+    # Get or create zone
+    zones = get_zones(Session)
+    if zones:
+        zone_id = zones[0].id
+    else:
+        zone = add_zone(
+            name="TEST_ZONE",
+            sub_network=VM_CONFIG["network"]["subnet"],
+            network_mask=VM_CONFIG["network"]["mask"],
+            dns=VM_CONFIG["network"]["dns"],
+            hypervisor_id=None,
+            hypervisor_type="vmware",  # Placeholder
+            gateway=VM_CONFIG["network"]["gateway"],
+            domain=VM_CONFIG["base_domain"],
+            vlan_name="default",
+            Session=Session
+        )
+        zone_id = zone.id
+
+    # Create 3 VMs
+    for vm_config in VM_CONFIG["vms"]:
+        vm = add_virtual_machine(
+            hostname=vm_config["hostname"],
+            ip=vm_config["ip"],
+            zone_id=zone_id,
+            group=vm_config["group"],
+            roles=vm_config["roles"],
+            nb_cpu=vm_config["cpu"],
+            ram=vm_config["ram"],
+            os_disk_size=vm_config["disk"],
+            data_disk_size=0,
+            Session=Session
+        )
+        logger.info(f"✅ Created VM: {vm_config['hostname']} ({vm_config['ip']}) - {vm_config['group']}")
+
+    logger.info("✅ Minimal 3-VM test architecture scaffolded successfully!")
 
 
 if __name__ == "__main__":
