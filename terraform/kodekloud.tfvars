@@ -12,6 +12,10 @@
 # AWS Region - KodeKloud usually uses us-east-1
 aws_region = "us-east-1"
 
+# Availability Zone - t3.medium NOT supported in us-east-1e
+# Choose from: us-east-1a, us-east-1b, us-east-1c, us-east-1d, us-east-1f
+availability_zone = "us-east-1a"
+
 # SSH Key pair name (create it first - see instructions above)
 key_name = "harmo-key"
 

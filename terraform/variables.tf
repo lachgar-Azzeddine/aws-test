@@ -35,6 +35,12 @@ variable "subnet_id" {
   type        = string
 }
 
+variable "availability_zone" {
+  description = "Availability zone for instances (use az that supports your instance type)"
+  type        = string
+  default     = ""  # If empty, AWS will choose automatically
+}
+
 variable "environment" {
   description = "Environment name (prefix for resources)"
   type        = string
