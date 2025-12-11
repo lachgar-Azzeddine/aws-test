@@ -190,9 +190,9 @@ output "vm_config_json" {
       }
     ]
     zone = {
-      sub_network  = cidrsubnet(data.aws_subnet.selected.cidr_block, 0, 0)
-      network_mask = split("/", data.aws_subnet.selected.cidr_block)[1]
-      gateway      = cidrhost(data.aws_subnet.selected.cidr_block, 1)
+      sub_network  = "10.0.0.0"
+      network_mask = "24"
+      gateway      = "10.0.0.1"
     }
   })
 }

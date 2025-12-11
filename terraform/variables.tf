@@ -5,7 +5,13 @@
 variable "aws_region" {
   description = "AWS region to deploy resources"
   type        = string
-  default     = "eu-west-1"
+  default     = "us-east-1"
+}
+
+variable "ami_id" {
+  description = "AMI ID to use (leave empty to use default Ubuntu 22.04 for region)"
+  type        = string
+  default     = ""
 }
 
 variable "instance_type" {

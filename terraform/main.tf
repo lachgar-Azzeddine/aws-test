@@ -22,23 +22,24 @@ provider "aws" {
 }
 
 # =============================================================================
-# DATA SOURCES
+# AMI CONFIGURATION - Hardcoded for KodeKloud compatibility
+# =============================================================================
+# KodeKloud restricts DescribeImages, so we use hardcoded AMI IDs
+# Ubuntu 22.04 LTS AMI IDs by region (update if needed)
 # =============================================================================
 
-# Get latest Ubuntu 22.04 LTS AMI
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"] # Canonical
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+locals {
+  ubuntu_ami = {
+    "us-east-1" = "ami-0c7217cdde317cfec"  # Ubuntu 22.04 LTS
+    "us-east-2" = "ami-05fb0b8c1424f266b"
+    "us-west-1" = "ami-0ce2cb35386fc22e9"
+    "us-west-2" = "ami-008fe2fc65df48dac"
+    "eu-west-1" = "ami-0905a3c97561e0b69"
+    "eu-west-2" = "ami-0e5f882be1900e43b"
   }
 
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
+  # Use the AMI for the selected region, or allow override via variable
+  ami_id = var.ami_id != "" ? var.ami_id : local.ubuntu_ami[var.aws_region]
 }
 
 # =============================================================================
@@ -170,7 +171,7 @@ resource "aws_security_group" "harmo_sg" {
 resource "aws_instance" "harmo_vm" {
   for_each = var.vms
 
-  ami                         = data.aws_ami.ubuntu.id
+  ami                         = local.ami_id
   instance_type               = var.instance_type
   key_name                    = var.key_name
   subnet_id                   = var.subnet_id
