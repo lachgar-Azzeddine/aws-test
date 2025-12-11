@@ -175,6 +175,7 @@ resource "aws_instance" "harmo_vm" {
   instance_type               = var.instance_type
   key_name                    = var.key_name
   subnet_id                   = var.subnet_id
+  availability_zone           = var.availability_zone != "" ? var.availability_zone : null
   vpc_security_group_ids      = [aws_security_group.harmo_sg.id]
   associate_public_ip_address = true
 
@@ -182,7 +183,7 @@ resource "aws_instance" "harmo_vm" {
     volume_size           = var.root_volume_size
     volume_type           = "gp3"
     delete_on_termination = true
-    encrypted             = true
+    encrypted             = false  # KodeKloud SCP blocks encrypted volumes
   }
 
   # Data volume for RKE nodes (Longhorn storage)
@@ -193,7 +194,7 @@ resource "aws_instance" "harmo_vm" {
       volume_size           = var.data_volume_size
       volume_type           = "gp3"
       delete_on_termination = true
-      encrypted             = true
+      encrypted             = false  # KodeKloud SCP blocks encrypted volumes
     }
   }
 

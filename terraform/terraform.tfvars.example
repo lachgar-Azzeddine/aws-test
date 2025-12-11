@@ -5,6 +5,11 @@
 # AWS Configuration
 aws_region = "eu-west-1"
 
+# Availability Zone (optional - leave empty for auto-selection)
+# Specify if you encounter "instance type not supported" errors
+# Example: "us-east-1a" or "eu-west-1b"
+availability_zone = ""
+
 # Your AWS SSH Key Pair name (must exist in AWS)
 key_name = "your-key-pair-name"
 
